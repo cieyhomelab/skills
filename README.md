@@ -4,7 +4,11 @@ A collection of portable Agent Skills, packaged as [agent-plugins.org](https://a
 
 ## Plugins
 
-- [`agent-plugins/`](./agent-plugins) — Build a plugin conforming to the agent-plugins.org spec, via a Socratic session that scopes the plugin before scaffolding `plugin.json`, `skills/*/SKILL.md`, and `mcp.json`.
+| Plugin | Version | Description |
+|---|---|---|
+| [`agent-plugins/`](./agent-plugins) | 1.0.0 | Build a plugin conforming to the agent-plugins.org spec, via a Socratic session that scopes the plugin before scaffolding `plugin.json`, `skills/*/SKILL.md`, and `mcp.json`. |
+
+More plugins will be added here as they're built. Each row's version tracks that plugin's own `plugin.json`.
 
 ## Structure
 

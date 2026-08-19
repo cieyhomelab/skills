@@ -1,0 +1,4 @@
+interface:
+  display_name: "A2A Agent Codex"
+  short_description: "Build A2A protocol agents"
+  default_prompt: "Use $a2a-agent-codex to design and scaffold an A2A protocol agent."

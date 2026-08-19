@@ -1,0 +1,5 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "a2a-agent-antigravity",
+  "description": "Skill for creating agents according to the A2A protocol using a Socratic session"
+}

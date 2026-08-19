@@ -1,0 +1,6 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "a2a-agent",
+  "version": "1.0.0",
+  "description": "Build an A2A (Agent2Agent) protocol agent via a Socratic session that checks A2A-vs-MCP fit and scopes skills, task lifecycle, transport, and security before scaffolding — or mentors the user through building it themselves."
+}

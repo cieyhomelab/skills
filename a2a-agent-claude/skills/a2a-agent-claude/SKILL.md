@@ -1,6 +1,6 @@
 ---
-name: a2a-agent
-description: Build an agent that speaks the A2A (Agent2Agent) protocol — the Linux Foundation open standard for agent-to-agent communication, governed by a Technical Steering Committee including AWS, Cisco, Google, IBM, Microsoft, Salesforce, SAP, and ServiceNow. Starts with a one-question-at-a-time Socratic session that first checks whether A2A is even the right protocol (versus MCP), then scopes the agent's skills, task lifecycle, transport binding, and protocol version before scaffolding the Agent Card, the executor, and the server or client wiring. Use whenever the user invokes /a2a-agent, asks to "build an A2A agent", "expose my agent over A2A", "write an agent card", "make my agent talk to another agent", "call a remote A2A agent", "publish .well-known/agent-card.json", or wants two independent agents to collaborate rather than one agent calling a tool.
+name: a2a-agent-claude
+description: Build an agent that speaks the A2A (Agent2Agent) protocol — the Linux Foundation open standard for agent-to-agent communication, governed by a Technical Steering Committee including AWS, Cisco, Google, IBM, Microsoft, Salesforce, SAP, and ServiceNow. Starts with a one-question-at-a-time Socratic session that first checks whether A2A is even the right protocol (versus MCP), then scopes the agent's skills, task lifecycle, transport binding, and protocol version before scaffolding the Agent Card, the executor, and the server or client wiring. Use whenever the user invokes /a2a-agent-claude, asks to "build an A2A agent", "expose my agent over A2A", "write an agent card", "make my agent talk to another agent", "call a remote A2A agent", "publish .well-known/agent-card.json", or wants two independent agents to collaborate rather than one agent calling a tool.
 allowed-tools:
   - Read
   - Write
@@ -10,7 +10,7 @@ allowed-tools:
   - AskUserQuestion
 ---
 
-# /a2a-agent — Build an A2A-Compliant Agent
+# /a2a-agent-claude — Build an A2A-Compliant Agent
 
 A2A (Agent2Agent) is an open protocol for **agents talking to other agents**: one agent delegates a unit of work to another over HTTP, without either side exposing its internal memory, tools, or reasoning. It was donated by Google to the Linux Foundation and is Apache-2.0 licensed. A remote agent publishes an **Agent Card** describing who it is and what it can do; clients discover that card, send **Messages**, and track the resulting stateful **Task** to a terminal state, collecting **Artifacts** along the way.
 

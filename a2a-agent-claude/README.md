@@ -1,18 +1,18 @@
-# a2a-agent
+# a2a-agent-claude
 
 Version: 1.0.0
 
-An [agent-plugins.org](https://agent-plugins.org) v1.0.0 plugin that packages the `a2a-agent` Skill: a guided, Socratic workflow for building agents that speak the [A2A (Agent2Agent) protocol](https://a2a-protocol.org) — the Linux Foundation open standard for agent-to-agent communication.
+An [agent-plugins.org](https://agent-plugins.org) v1.0.0 plugin that packages the `a2a-agent-claude` Skill: a guided, Socratic workflow for building agents that speak the [A2A (Agent2Agent) protocol](https://a2a-protocol.org) — the Linux Foundation open standard for agent-to-agent communication.
 
 The session opens by checking whether A2A is even the right protocol (versus MCP), then scopes the agent's skills, task lifecycle, transport binding, and protocol version before scaffolding the Agent Card, executor, and server or client wiring.
 
 ## Contents
 
 ```
-a2a-agent/
+a2a-agent-claude/
 ├── plugin.json
 └── skills/
-    └── a2a-agent/
+    └── a2a-agent-claude/
         ├── SKILL.md
         └── references/
             ├── protocol.md          # A2A v1.0 wire format: card, data model, methods, errors

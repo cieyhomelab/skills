@@ -7,7 +7,7 @@ A collection of portable Agent Skills, packaged as [agent-plugins.org](https://a
 | Plugin | Version | Description |
 |---|---|---|
 | [`a2a-agent-codex/`](./a2a-agent-codex) | 1.0.0 | Build an A2A protocol agent in Codex, via a Socratic session that checks A2A-vs-MCP fit and scopes skills, lifecycle, transport, security, and verification before scaffolding. |
-| [`a2a-agent/`](./a2a-agent) | 1.0.0 | Build an agent that speaks the [A2A](https://a2a-protocol.org) protocol, via a Socratic session that checks A2A-vs-MCP fit and scopes skills, task lifecycle, and transport before scaffolding the Agent Card, executor, and server/client wiring. |
+| [`a2a-agent-claude/`](./a2a-agent-claude) | 1.0.0 | Build an agent that speaks the [A2A](https://a2a-protocol.org) protocol, via a Socratic session that checks A2A-vs-MCP fit and scopes skills, task lifecycle, and transport before scaffolding the Agent Card, executor, and server/client wiring. |
 | [`agent-plugins/`](./agent-plugins) | 1.0.0 | Build a plugin conforming to the agent-plugins.org spec, via a Socratic session that scopes the plugin before scaffolding `plugin.json`, `skills/*/SKILL.md`, and `mcp.json`. |
 
 More plugins will be added here as they're built. Each row's version tracks that plugin's own `plugin.json`.

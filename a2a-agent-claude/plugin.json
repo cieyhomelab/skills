@@ -1,5 +1,5 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "a2a-agent",
+  "name": "a2a-agent-claude",
   "version": "1.0.0"
 }

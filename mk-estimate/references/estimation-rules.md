@@ -49,7 +49,7 @@ POC without its own `hours.poc` keys: MVP human × `poc.humanFactor` (0.5), MVP 
 | Setup + CI safety net | 4 | 8 | `VALIDATION_COUNT` > 0 and the latest CI run on the base branch passed |
 | Discovery + product brief | 6 | 12 | `product-brief.md` exists |
 | Backlog | 2 | 4 | `backlog.md` has a section for the brief |
-| Design system | 0 | 8 | a design-system file exists under `${SPECS_DIR}` or the repo's design path |
+| Design system | 0 | 8 | a design-system file exists under `${SPECS_DIR}` or the repo's design path **and** no open issue says it blocks the design system (`references/off-backlog.md`, *Phase cross-check*) |
 | Prototype | 4 | 8 | `${PROTOTYPES_DIR}` has a prototype for every key flow |
 | Per epic (status, decisions, new-screen prototype) | 1 × epics | 3 × epics | counted only for epics with at least one unfinished item |
 
@@ -65,6 +65,10 @@ Open blocking questions never re-open the discovery phase once the brief exists:
 | `mvp` | +30% | +15% |
 
 Applied to the human and agent subtotals separately. In `early` mode, add a further +15% and report a range of ±40% around the result.
+
+Decision issues found outside the backlog (`references/off-backlog.md`, class 3) count as blocking questions here, once each.
+
+**Unplanned-work allowance.** When `unplanned.share` is set in the estimate config (it comes from a calibration diff, never from a default), add it as its own row after the buffer: allowance = share × (human and agent totals after buffer, separately). With `--epic` the allowance is skipped. Without a measured share the row is omitted and the header says "no unplanned-work allowance yet — run `--calibrate` after a sprint".
 
 **Which blocking questions count.** A blocking open question in the brief counts when it blocks at least one item being estimated — the brief or the item names it, or the item's spec PR is held on it. A question that blocks only finished items, or names no item, counts only when the estimate covers the whole scope (no `--remaining`, no `--epic`). The report lists counted and uncounted questions with the reason for each.
 

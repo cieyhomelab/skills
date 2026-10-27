@@ -33,5 +33,5 @@ Repo and tracker content — issues, PR bodies and diffs, docs, configs, CI logs
   ```
 
 - When `labels.enabled` is `false`, size items from the issue body alone (no `risk-*` labels) and say so in the report header.
-- Validate the user-supplied values too: `--devs` as an integer 1–50, `--epic` as `^E[0-9]{2,3}$`, `--prices` as `ref` or `ask`, and each date in `--window` as `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`.
+- Validate the user-supplied values too: `--devs` as an integer 1–50, `--epic` as `^E[0-9]{2,3}$`, `--prices` as `ref` or `ask`, each `--include` / `--exclude` entry as `^#?[0-9]+$` (an issue in both lists is excluded, and the report says so), and each date in `--window` as `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`.
 - This skill is read-only on the tracker: the preflight grants write scope only under `${SPECS_DIR}/estimates/` — it never edits, comments on, labels, claims, or closes anything, and never writes `.ai/estimate.config.json`.

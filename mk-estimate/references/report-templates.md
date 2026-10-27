@@ -13,13 +13,26 @@ The user-facing shapes `mk-estimate` renders in step 7 (estimate) and step 9 (ca
 | One-time phases | {h} | {h} |
 | Items ({n}: {s} S · {m} M · {l} L) | {h} | {h} |
 | In flight ({n}, finishing only) | {h} | {h} |
+| Off-backlog ({n} included) | {h} | {h} |
 | Buffer (+{pct}%) | {h} | {h} |
+| Unplanned allowance ({pct}%) | {h} | {h} |
 | **Total** | **{h}** | **{h}** |
 
 💰 API: ~{Mtok} M tokens → {cost or "not configured"} · Subscription: {devs} × {months} mo → {cost or "not configured"} (prices: {catalog as of {asOf} | interview} {, reason for interview})
 
 ⚠️ Split first: {XL item ids → `om-backlog … --epic E0x`}
 ⚠️ Blocking questions: {counted ids and what each blocks}; not counted: {ids and why}
+
+<details><summary>Off-backlog ({n} open issues)</summary>
+
+| Class | Issues | Treatment |
+|---|---|---|
+| Included | #{n} — {title} ({size}, {rule}; auto / --include) | sized and costed |
+| Decision | #{n} — {title} | counted as a blocking question |
+| Listed | #{n}, #{n}, … | not counted — add with `--include` |
+| Excluded | #{n} | `--exclude` |
+
+</details>
 
 <details><summary>One-time phases</summary>
 
@@ -46,13 +59,13 @@ The user-facing shapes `mk-estimate` renders in step 7 (estimate) and step 9 (ca
 🔁 Next: `{skill} {argument}`
 ```
 
-Omit the ⚠️ lines, the in-flight row, and the per-epic block when empty; keep the one-time phases block whenever `--remaining` is set. In the item list, an in-flight row shows `{size} · in flight (PR #{n})` and its finishing hours. Show the dependency floor as one sentence under the table only when it set the calendar.
+Omit the ⚠️ lines, the in-flight, off-backlog, and allowance rows, and the per-epic block when empty; keep the off-backlog block whenever the scan ran, even with nothing included, because it is how the user sees what the estimate leaves out; keep the one-time phases block whenever `--remaining` is set. In the item list, an in-flight row shows `{size} · in flight (PR #{n})` and its finishing hours. Show the dependency floor as one sentence under the table only when it set the calendar.
 
 ## Baseline block (end of every saved estimate file)
 
 A fenced block with the info string `mk-estimate-baseline`, holding the `--format json` object below plus `"hoursUsed"` (per-size hours actually applied, buffer excluded) and `"configHash"` (sha256 of `.ai/estimate.config.json`, or `"defaults"`). An estimate file without it cannot be calibrated.
 
-`--format json` object: `{"target", "devs", "mode", "confidence", "date", "sprints", "bindingClock", "human": {"phases", "items", "buffer", "total"}, "agent": {"phases", "items", "buffer", "total"}, "cost": {"apiTokens", "api", "subscription"}, "prices": {"source": "catalog|interview", "asOf", "currency", "models": {...}, "seat"}, "splitFirst": [...], "blocking": [...], "epics": [...], "items": [{"id", "issue", "epic", "size", "rule", "human", "agent", "assumed", "inFlight", "implPr"}], "assumptions": [...]}`.
+`--format json` object: `{"target", "devs", "mode", "confidence", "date", "sprints", "bindingClock", "human": {"phases", "items", "buffer", "total"}, "agent": {"phases", "items", "buffer", "total"}, "cost": {"apiTokens", "api", "subscription"}, "prices": {"source": "catalog|interview", "asOf", "currency", "models": {...}, "seat"}, "splitFirst": [...], "blocking": [...], "epics": [...], "items": [{"id", "issue", "epic", "size", "rule", "human", "agent", "assumed", "inFlight", "implPr", "offBacklog"}], "offBacklog": {"included": [...], "decision": [...], "listed": [...], "excluded": [...], "unread": n}, "unplanned": {"share", "human", "agent"}, "assumptions": [...]}`.
 
 ## Calibration report
 

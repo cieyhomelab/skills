@@ -60,6 +60,8 @@ The user-facing shapes `mk-estimate` renders in step 7 (estimate) and step 9 (ca
 🔁 Next: `{skill} {argument}`
 ```
 
+When an earlier estimate for the same target exists from the same day, add one short paragraph under the scope line: which rule or tracker change moved which rows, from what to what. It is derived by comparing two independently computed results, never by patching the earlier one.
+
 Omit the ⚠️ lines, the in-flight, off-backlog, and allowance rows, and the per-epic block when empty; keep the off-backlog block whenever the scan ran, even with nothing included, because it is how the user sees what the estimate leaves out; keep the one-time phases block whenever `--remaining` is set. In the item list, an in-flight row shows `{size} · in flight (PR #{n})` and its finishing hours. Show the dependency floor as one sentence under the table only when it set the calendar.
 
 ## Baseline block (end of every saved estimate file)

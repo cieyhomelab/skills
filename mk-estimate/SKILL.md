@@ -53,6 +53,7 @@ The numbers are deterministic: every size, hour, buffer, and calendar figure com
 - **Two clocks, never summed.** Human FTE hours and agent wall-clock hours are reported separately; calendar time comes from whichever binds.
 - **Never invent prices or samples.** Prices come only from the catalog or the user's interview answers (unanswered → `not configured`, the hours estimate still completes); too little delivery evidence means no calibration proposal, never borrowed defaults.
 - **Say what was assumed** — defaulted config values, `assumed` sizes, POC epic selection, early-mode heuristics, `approx` measurements — in the report header.
+- **Re-derive every row on every run.** Read the current `references/` files and apply them to the current tracker state; never copy sizes, rules, or hours from an earlier estimate file. Earlier files are read only to say what changed, and that comparison names every row whose value moved.
 - **Do not estimate XL.** Splitting is the action; a number for an XL item is false precision.
 - **Write only under `${SPECS_DIR}/estimates/`.** No tracker mutations and no edits to the brief, backlog, specs, or `.ai/estimate.config.json`.
 

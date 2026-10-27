@@ -34,6 +34,7 @@ graph LR
 
 </details>
 
+{📋 line when --notify ran: "{k} owners notified on their issues; {j} earlier notices marked resolved."}
 {🏷️ line when label drift exists and --sync-labels was not passed: "{k} issues carry a stale or missing `blocked` label; run with --sync-labels to fix."}
 
 Next: {first next action as a skill invocation, or none}

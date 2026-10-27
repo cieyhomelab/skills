@@ -17,7 +17,7 @@ Canonical rules shared by every skill in this collection. They always apply, in 
 
 ## mk-check-blockers specifics
 
-- **Read-only by default — not an autonomous pipeline run.** It reads the backlog map and the tracker and reports; it never claims, assigns, closes, retitles, or edits an issue body. The only write is `--sync-labels` (the `blocked` label plus one marker comment per issue), and only after the user's yes to the shown diff.
+- **Read-only by default — not an autonomous pipeline run.** It reads the backlog map and the tracker and reports; it never claims, assigns, closes, retitles, or edits an issue body. The only writes are `--sync-labels` (the `blocked` label plus one marker comment per issue) and `--notify` (one marker comment per ⛔ finding on the issue at risk), and only after the user's yes to what will be posted — or, unattended, when the flag was passed explicitly.
 - **Claim etiquette, applied to a reader.** Run the three-signal check on every open node to find owners; never release, refresh, or take over a claim, stale or not. A claimed item's labels are its owner's: `--sync-labels` skips it.
 - **Additional markers.** Gate mode ends with `Verdict:`, `Blocked by:` (on `wait` or `conflict`), and `Next:`; full reports end with `Next:` only. Exact shapes are in the skill body's Output contract — same exactness rules as `PR:` / `Issue:`.
 - **Conflicts carry owners.** Every finding names who can act on it (login, or "backlog owner") and one next step; a conflict without an owner is reported as such, never assigned by guess.

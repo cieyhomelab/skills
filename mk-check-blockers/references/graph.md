@@ -32,7 +32,16 @@ Evaluate top to bottom; first match wins.
 
 ## What to read, and how much
 
-- One **get-issue** per node; **list-issue-comments** only for open nodes (claim comments).
-- One **search-prs** per open node for PRs whose body closes the issue (`Closes|Fixes|Resolves #n`) or references it (`Refs #n`); a `Refs` PR adding a file under `${SPECS_DIR}` is a spec PR — in flight, but it never touches code, so it is excluded from file overlap.
-- **get-pr-files** only for open, non-spec implementation PRs.
-- Cap: when the scope exceeds 100 nodes, read the first 100 in backlog order plus every blocker they reach, and state the truncation in the report header.
+Read in bulk first, per item only where bulk cannot answer. The order below keeps a 40-issue backlog at roughly five tracker calls plus one per open implementation PR, instead of five per issue.
+
+1. **search-issues**, once per selected source, with the fields `number,title,state,stateReason,labels,assignees,body,updatedAt` and `--state all`, limit 200. This yields every node's body (`Depends on:`, `Backlog source:`, `Backlog id:`), labels, and assignees in one call — enough for the edges, two of the three claim signals, and `Resolved`/`Dropped`.
+2. **list-prs** once, open PRs, fields `number,title,body,isDraft,author,headRefName,mergeable,updatedAt,files`. Map each PR to its issue through `Closes|Fixes|Resolves #n` (implementation) and `Refs #n` (spec PR when it adds a file under `${SPECS_DIR}`). The `files` field covers rule C6 without a per-PR call; use **get-pr-files** only when the tracker omits it.
+3. **search-prs** for merged PRs closing the open nodes that have no closing PR in step 2 (`merged, closes #n`), one call per source using an `in:body` query; a hit makes the node `Resolved (merged, issue not closed)`.
+4. **list-issue-comments** only for open nodes with no assignee and no `in-progress` label — the third claim signal can only change the state of those. Also for every `In flight` node, to date its newest owner activity for the stale check.
+5. **get-issue** only for a blocker outside the selected sources (an external dependency the bulk search did not return), and in gate mode for the target and its transitive blockers.
+
+Spec PRs count as in flight but never touch code, so they are excluded from C6.
+
+**Predicted footprint** (rule C6b). For every `In flight` node that has no open implementation PR yet, and for every *Safe to start* candidate, read the files the work is expected to touch from the first of: the spec's *Files to change* / *Affected modules* section (`Spec:` line in the issue, or the merged spec PR); the issue's *Out of scope*/*Expected outcome* module names; a module label. Keep it as a list of paths or module names marked `(predicted)`; it feeds only C6b and never the graph.
+
+Cap: when the scope exceeds 100 nodes, read the first 100 in backlog order plus every blocker they reach, and state the truncation in the report header.

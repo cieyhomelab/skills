@@ -16,7 +16,7 @@ Evaluate top to bottom; first match wins. Label names come from the config's tax
 |---|---|---|---|
 | 1 | Excluded | listed in `--exclude` | listed, not counted |
 | 2 | Included | listed in `--include` | sized and costed |
-| 3 | Decision | the issue asks open product or design questions and changes no code by itself (an open question list, a "decide …" title) | counted as a blocking question in the buffer, never as an item |
+| 3 | Decision | the issue asks open product or design questions and changes no code by itself (an open question list, a "decide …" title) | counted as a blocking question, scoped to the items or phases its body names; never an item |
 | 4 | Included (auto) | categorized as a bug or a security issue **and** carries `priority-high` or `risk-high` | sized and costed |
 | 5 | Listed | anything else | listed with its labels, not counted |
 
@@ -24,7 +24,19 @@ The report shows every class with issue numbers, so the user can move an issue w
 
 ## Size and cost
 
-Included issues use the *Item size* table and *Hours per size* in `references/estimation-rules.md`, with one change: a bug or security fix goes through `om-prepare-issue` → `om-auto-fix-issue`, not through a written spec, so its spec share is always subtracted. Included issues roll up under a separate "Off-backlog" epic row; they add no per-epic overhead.
+An included issue that is a **bug or security fix** goes through `om-prepare-issue` → `om-auto-fix-issue`, not through a written spec, so its spec share is always subtracted. It is sized by the scope of the change, not by its risk — `risk-*` labels say how carefully the fix must be reviewed, not how much work it is:
+
+| Size | When (first match wins, from the issue body) |
+|---|---|
+| L | needs a data migration, or changes a business rule, the permission model, or a public contract |
+| M | spans more than one layer (e.g. UI and API), or several modules, or needs a new automated test suite |
+| S | anything else — one module, a configuration or binding change, a single behavior |
+
+A fix carrying `risk-high` or `security` keeps its size and gets the note "cross-model review required" in its row; that review is already inside the human hours, so the label adds no hours.
+
+Any other included issue (a feature or enhancement) uses the *Item size* table and *Hours per size* in `references/estimation-rules.md`, spec share included.
+
+Included issues roll up under a separate "Off-backlog" epic row; they add no per-epic overhead.
 
 ## Phase cross-check
 

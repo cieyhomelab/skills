@@ -59,14 +59,23 @@ Open blocking questions never re-open the discovery phase once the brief exists:
 
 ## Buffer
 
-| Target | Base buffer (`buffer.poc` / `buffer.mvp`) | Per blocking open question in the brief (`buffer.perBlockingQuestion`) |
-|---|---|---|
-| `poc` | +20% | +15% |
-| `mvp` | +30% | +15% |
+The buffer has two parts, reported as two rows.
 
-Applied to the human and agent subtotals separately. In `early` mode, add a further +15% and report a range of ±40% around the result.
+**Base buffer** — on the whole subtotal (phases + items + in flight + off-backlog), human and agent separately:
 
-Decision issues found outside the backlog (`references/off-backlog.md`, class 3) count as blocking questions here, once each.
+| Target | Base buffer (`buffer.poc` / `buffer.mvp`) |
+|---|---|
+| `poc` | +20% |
+| `mvp` | +30% |
+
+**Blocking-question buffer** — scoped to what each counted question blocks, never to the whole estimate:
+
+- A question that names what it blocks adds `buffer.perBlockingQuestion` (default 50%) × the human and agent hours of exactly those items or phases. Example: a question blocking one L item adds 4 h human and 2.5 h agent; a question blocking the 8 h design-system phase adds 4 h human.
+- Two questions blocking the same item each add their share.
+- A counted question that names nothing (whole-scope estimates only, see below) adds `buffer.perUnscopedQuestion` (default 15%) × the subtotal, and the report flags it as unscoped.
+- Decision issues found outside the backlog (`references/off-backlog.md`, class 3) count as blocking questions here, once each, scoped to the items or phases their body names.
+
+In `early` mode, add a further +15% to the base buffer and report a range of ±40% around the result.
 
 **Unplanned-work allowance.** When `unplanned.share` is set in the estimate config (it comes from a calibration diff, never from a default), add it as its own row after the buffer: allowance = share × (human and agent totals after buffer, separately). With `--epic` the allowance is skipped. Without a measured share the row is omitted and the header says "no unplanned-work allowance yet — run `--calibrate` after a sprint".
 

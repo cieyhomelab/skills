@@ -14,7 +14,8 @@ The user-facing shapes `mk-estimate` renders in step 7 (estimate) and step 9 (ca
 | Items ({n}: {s} S · {m} M · {l} L) | {h} | {h} |
 | In flight ({n}, finishing only) | {h} | {h} |
 | Off-backlog ({n} included) | {h} | {h} |
-| Buffer (+{pct}%) | {h} | {h} |
+| Base buffer (+{pct}%) | {h} | {h} |
+| Blocking questions ({n}: {id → blocked items}) | {h} | {h} |
 | Unplanned allowance ({pct}%) | {h} | {h} |
 | **Total** | **{h}** | **{h}** |
 
@@ -65,7 +66,7 @@ Omit the ⚠️ lines, the in-flight, off-backlog, and allowance rows, and the p
 
 A fenced block with the info string `mk-estimate-baseline`, holding the `--format json` object below plus `"hoursUsed"` (per-size hours actually applied, buffer excluded) and `"configHash"` (sha256 of `.ai/estimate.config.json`, or `"defaults"`). An estimate file without it cannot be calibrated.
 
-`--format json` object: `{"target", "devs", "mode", "confidence", "date", "sprints", "bindingClock", "human": {"phases", "items", "buffer", "total"}, "agent": {"phases", "items", "buffer", "total"}, "cost": {"apiTokens", "api", "subscription"}, "prices": {"source": "catalog|interview", "asOf", "currency", "models": {...}, "seat"}, "splitFirst": [...], "blocking": [...], "epics": [...], "items": [{"id", "issue", "epic", "size", "rule", "human", "agent", "assumed", "inFlight", "implPr", "offBacklog"}], "offBacklog": {"included": [...], "decision": [...], "listed": [...], "excluded": [...], "unread": n}, "unplanned": {"share", "human", "agent"}, "assumptions": [...]}`.
+`--format json` object: `{"target", "devs", "mode", "confidence", "date", "sprints", "bindingClock", "human": {"phases", "items", "baseBuffer", "questionBuffer", "total"}, "agent": {"phases", "items", "baseBuffer", "questionBuffer", "total"}, "cost": {"apiTokens", "api", "subscription"}, "prices": {"source": "catalog|interview", "asOf", "currency", "models": {...}, "seat"}, "splitFirst": [...], "blocking": [...], "epics": [...], "items": [{"id", "issue", "epic", "size", "rule", "human", "agent", "assumed", "inFlight", "implPr", "offBacklog"}], "offBacklog": {"included": [...], "decision": [...], "listed": [...], "excluded": [...], "unread": n}, "unplanned": {"share", "human", "agent"}, "assumptions": [...]}`.
 
 ## Calibration report
 

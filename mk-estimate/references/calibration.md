@@ -36,7 +36,7 @@ Validate `human-hours` against `^[0-9]{1,3}(\.[0-9])?$`; anything else is ignore
 - **Clamp:** a factor outside `calibration.clamp` (default [0.5, 2.0]) is not applied; report it as ⚠️ "sizing, not hours" with the items that drove it.
 - **Spec share** scales with the human factor of its size.
 - **`approx` agent hours** count with weight 0.5 in every mean and never alone satisfy `minSamples`.
-- **Buffer check:** the share of items whose actual exceeded estimate × (1 + base buffer). Above 30% → propose +10 points on the base buffer; below 10% → propose −5 points. A separate line in the diff.
+- **Buffer check:** the share of items whose actual exceeded estimate × (1 + base buffer), plus their question share when a blocking question was scoped to them. Above 30% → propose +10 points on the base buffer; below 10% → propose −5 points. A separate line in the diff.
 - **Unplanned work** — hours of items delivered in the window that were in no baseline (neither backlog item nor included off-backlog issue), as a share of all delivered hours in the window. Propose it as `unplanned.share` in the diff (damped like the hours, rounded to 0.05; needs at least `calibration.minSamplesGlobal` windows or 3 unplanned items, otherwise report it without proposing). Above 20% also add ⚠️ "scope grew outside the backlog — re-run the estimate with `--remaining`".
 
 ## Confidence

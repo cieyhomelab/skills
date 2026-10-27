@@ -17,7 +17,7 @@ The defaults `mk-estimate` falls back to when `.ai/estimate.config.json` is abse
   },
   "finishing": { "agentShare": 0.25 },
   "unplanned": { "share": null },
-  "buffer": { "poc": 0.20, "mvp": 0.30, "perBlockingQuestion": 0.15 },
+  "buffer": { "poc": 0.20, "mvp": 0.30, "perBlockingQuestion": 0.50, "perUnscopedQuestion": 0.15 },
   "calibration": { "minSamples": 5, "minSamplesGlobal": 3, "damping": 0.5, "clamp": [0.5, 2.0], "capacityUsed": 1.0, "history": [] },
   "tokens": { "inputPerAgentHour": 4000000, "outputPerAgentHour": 200000, "cachedShare": 0.9, "reviewOverhead": 0.15 },
   "models": {

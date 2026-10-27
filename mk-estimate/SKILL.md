@@ -36,7 +36,7 @@ The numbers are deterministic: every size, hour, buffer, and calendar figure com
 
 4. **Cost every item** from `hours` in the estimate config (fallback: the *Hours per size* table). Subtract the spec share when a merged spec PR exists; with `--remaining`, drop finished items.
 
-5. **Add one-time phases and the buffer** per `references/estimation-rules.md`; with `--remaining`, drop phases whose "already done" condition holds. Blocking questions raise the buffer only — counted when they block an estimated item — and never re-open discovery. Add the unplanned-work allowance when calibration has measured one.
+5. **Add one-time phases and the buffer** per `references/estimation-rules.md`; with `--remaining`, drop phases whose "already done" condition holds. The base buffer covers the whole subtotal; each counted blocking question adds a share of only the hours it blocks, and never re-opens discovery. Add the unplanned-work allowance when calibration has measured one.
 
 6. **Convert to calendar and cost.** Calendar and dependency floor: `references/estimation-rules.md`. Resolve prices per `--prices` — the catalog in `references/model-prices.md` or the price interview — then compute API and subscription cost; both are in `references/cost-model.md`. Name which clock binds — human or agent.
 

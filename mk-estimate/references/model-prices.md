@@ -1,6 +1,6 @@
-# Model price catalog
+# Price catalog
 
-The price list `mk-estimate` reads in step 6 when `--prices ref` (the default) is in effect. It ships with the skill; update it by editing this file and its `asOf` date — the skill never refreshes it from the web.
+This file contains the model prices and the seat prices. Step 6 uses it when `--prices ref` is set. The script `scripts/estimate.py` reads the JSON block below.
 
 ```json
 {
@@ -17,14 +17,15 @@ The price list `mk-estimate` reads in step 6 when `--prices ref` (the default) i
     "team-premium-monthly": 125,
     "team-premium-annual":  100,
     "max-5x":               100
-  },
-  "defaultSeat": "team-premium-monthly"
+  }
 }
 ```
 
 ## Notes
 
-- Claude prices are standard API rates (Opus 5.5 after the 2026-10-05 cut; Sonnet 5.5 at the Sonnet 5 rate). Fast mode and batch pricing are not listed.
-- `gpt-6-1-sol.cachedInput` is assumed equal to GPT-6 Sol's; GPT-6 rates apply to prompts up to 272K input tokens.
-- Seat prices are per developer per month. A solo developer running overnight loops may prefer a max-usage individual plan over a team seat.
-- Verify against the vendors' official pricing pages before quoting an estimate to a client, then update `asOf`.
+1. The Claude prices are standard API prices. The catalog does not contain the prices for fast mode or batch mode.
+2. The `cachedInput` value of `gpt-6-1-sol` is an assumption. It is equal to the value of GPT-6 Sol.
+3. The GPT-6 prices apply to prompts with a maximum of 272K input tokens.
+4. A seat price is the price for one developer for one month.
+5. To change a price, edit the JSON block and change `asOf` to the date of the change.
+6. Before you give an estimate to a client, compare the prices with the official price pages of the vendors.

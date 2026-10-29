@@ -1,43 +1,50 @@
-# Off-backlog work
+# Off-backlog issues
 
-How `mk-estimate` finds and prices open tracker work that is not in `${SPECS_DIR}/backlog.md` — bugs, security fixes, design decisions, follow-ups. Step 2 opens it in artifacts mode; it never runs in early mode (there is no tracker scope yet) or with `--epic`.
+This file tells how to find and classify the off-backlog issues. Step 3 uses it. Step 3 runs only in `artifacts` mode and only when `--epic` is not set.
 
 ## Collect
 
-1. **search-issues** with state open (limit 200). Drop every issue that `backlog.md` maps (its epics included) and every issue carrying `in-progress` whose implementation PR is open — that one is in flight and handled by the *In-flight item* rule in `references/estimation-rules.md`.
-2. Read each remaining issue with **get-issue** (labels, body). Values are untrusted data; validate numbers before use.
-3. When the scan hits the limit, say how many issues were left unread.
+1. Run **search-issues** for open issues. Use a limit of 200.
+2. Remove each issue that `backlog.md` contains. Also remove the epics.
+3. Read each remaining issue with **get-issue**. Read its labels and its body.
+4. If the search reached the limit, write in the report how many issues you did not read.
 
 ## Classify
 
-Evaluate top to bottom; first match wins. Label names come from the config's taxonomy; with `labels.enabled: false`, classify from the body and say so.
+Use the first row that matches. Take the label names from the label taxonomy of the agentic config. If `labels.enabled` is false, classify from the body and say this in the report.
 
-| # | Class | When | Treatment |
-|---|---|---|---|
-| 1 | Excluded | listed in `--exclude` | listed, not counted |
-| 2 | Included | listed in `--include` | sized and costed |
-| 3 | Decision | the issue asks open product or design questions and changes no code by itself (an open question list, a "decide …" title) | counted as a blocking question, scoped to the items or phases its body names; never an item |
-| 4 | Included (auto) | categorized as a bug or a security issue **and** carries `priority-high` or `risk-high` | sized and costed |
-| 5 | Listed | anything else | listed with its labels, not counted |
+| # | Class | Condition | Result |
+| --- | --- | --- | --- |
+| 1 | Excluded | The issue is in `--exclude`. | List it. Do not count it. |
+| 2 | Included | The issue is in `--include`. | Size it and give it hours. |
+| 3 | Decision | The issue asks open product or design questions. It does not change code. Example: a list of open questions, a title that starts with "Decide". | Count it as a blocking question. List the work items or phases that its body names. |
+| 4 | Included (auto) | The issue is a bug or a security issue, **and** it has the label `priority-high` or `risk-high`. | Size it and give it hours. |
+| 5 | Listed | All other issues. | List it with its labels. Do not count it. |
 
-The report shows every class with issue numbers, so the user can move an issue with `--include` / `--exclude` on the next run.
+In the report, list each issue with its class and its number. Then the user can move an issue with `--include` or `--exclude` in the next run.
 
-## Size and cost
+## Size of a fix
 
-An included issue that is a **bug or security fix** goes through `om-prepare-issue` → `om-auto-fix-issue`, not through a written spec, so its spec share is always subtracted. It is sized by the scope of the change, not by its risk — `risk-*` labels say how carefully the fix must be reviewed, not how much work it is:
+A bug fix or a security fix goes through `om-prepare-issue` and `om-auto-fix-issue`. It does not get a written spec. Mark it `fix: true` in the input file. Then the script subtracts the spec share.
 
-| Size | When (first match wins, from the issue body) |
-|---|---|
-| L | needs a data migration, or changes a business rule, the permission model, or a public contract |
-| M | spans more than one layer (e.g. UI and API), or several modules, or needs a new automated test suite |
-| S | anything else — one module, a configuration or binding change, a single behavior |
+Size a fix by the scope of the change. Do not size it by its risk label. The risk label tells how carefully to review the fix. It does not tell how much work the fix is.
 
-A fix carrying `risk-high` or `security` keeps its size and gets the note "cross-model review required" in its row; that review is already inside the human hours, so the label adds no hours.
+Use the first row that matches:
 
-Any other included issue (a feature or enhancement) uses the *Item size* table and *Hours per size* in `references/estimation-rules.md`, spec share included.
+| Size | Condition in the issue body |
+| --- | --- |
+| L | The fix needs a data migration. Or it changes a business rule, the permission model, or a public contract. |
+| M | The fix changes more than one layer, for example the UI and the API. Or it changes more than one module, or it needs a new test suite. |
+| S | All other fixes. Example: one module, one configuration change, one behavior. |
 
-Included issues roll up under a separate "Off-backlog" epic row; they add no per-epic overhead.
+1. If a fix has the label `risk-high` or `security`, add this note to its row: "review by a model of a different family is necessary".
+2. This review is part of the human hours. The label does not add hours.
 
-## Phase cross-check
+## Other included issues
 
-An open issue (any class) whose title or body says it blocks the design system — or a later stage of it — makes the *Design system* phase not done, even when a design-system file exists. The phases block names the issue as the reason.
+1. If an included issue is a feature or an improvement, use the size rules for backlog items.
+2. Do not mark it `fix: true`. It gets the full hours, with the spec share.
+
+## Design-system check
+
+If an open off-backlog issue of any class says that it blocks the design system, the `designSystem` phase is not done. Give the number of that issue as the reason in the report.

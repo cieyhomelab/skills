@@ -20,13 +20,13 @@ import re
 import sys
 from datetime import datetime, timezone
 
-SKILL = "mk-guard-dependencies"
-MARKER = "🤖 `" + SKILL + "` —"
+SKILL = "mk-guard-dependencies"  # the skill name in the comment marker
+MARKER = "🤖 `" + SKILL + "` —"  # the shared comment marker of the collection
 EXIT_INVALID = 2  # a different exit code than a Python crash (1), so callers can tell them apart
 
 DEFAULT_STALE_HOURS = 24  # the stale window of the shared claim protocol
-DEFAULT_SPECS_DIR = ".ai/specs"
-DEFAULT_LABELS = {
+DEFAULT_SPECS_DIR = ".ai/specs"  # the default of paths.specs in the pipeline config
+DEFAULT_LABELS = {  # the default label taxonomy of the pipeline config
     "blocked": "blocked",
     "inProgress": "in-progress",
     "doNotMerge": "do-not-merge",
@@ -36,20 +36,29 @@ DEFAULT_LABELS = {
 # Lock files and checksum files change in almost each PR. They tell nothing about the design.
 DEFAULT_IGNORE_PATHS = ["*.lock", "*-lock.json", "*-lock.yaml", "*.sum"]
 
+# A backlog id: E01, E01-S02, or E01-S02-T03, with any letter prefix of 1 to 6 letters.
 ID_RE = re.compile(r"\b[A-Za-z]{1,6}\d{2,}(?:-[ST]\d{2,}){0,2}\b")
-NUM_RE = re.compile(r"#(\d+)")
+NUM_RE = re.compile(  # an issue number, for example #12
+    r"#(\d+)")
+# The body lines that the backlog skill writes, with or without bold and list marks.
 FIELD_RE = re.compile(
     r"^[ \t]*(?:[-*][ \t]+)?(?:\*\*)?(Depends on|Backlog source|Backlog id|Spec)(?:\*\*)?[ \t]*:[ \t]*(.*)$",
     re.I | re.M,
 )
-EMPTY_WORDS = {"none", "n/a", "na", "and", "or", "—", "–", "-"}
-CLOSE_RE = re.compile(r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)", re.I)
-REFS_RE = re.compile(r"\brefs?\s*:?\s+#(\d+)", re.I)
+EMPTY_WORDS = {  # words in a Depends on line that mean "no dependency"
+    "none", "n/a", "na", "and", "or", "—", "–", "-"}
+CLOSE_RE = re.compile(  # the closing keywords of the tracker
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)", re.I)
+REFS_RE = re.compile(  # a reference without a close, for example a spec PR
+    r"\brefs?\s*:?\s+#(\d+)", re.I)
+# The release and claim comments of the shared claim protocol.
 RELEASE_RE = re.compile(r"^\s*🤖.*\b(lock released|released|run complete|aborted|handback|hand(?:ed)? back)\b", re.I | re.S)
 CLAIM_RE = re.compile(r"^\s*🤖.*\b(claim\w*|taking over|take-over|handed off|adopting|override)\b", re.I | re.S)
-SECRET_RE = re.compile(r"(ghp_[A-Za-z0-9]{20,}|github_pat_\w{20,}|glpat-[\w-]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})")
+SECRET_RE = re.compile(  # token formats of common services; a comment must not contain them
+    r"(ghp_[A-Za-z0-9]{20,}|github_pat_\w{20,}|glpat-[\w-]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})")
 
-SEVERITY_ORDER = {"stop": 0, "warn": 1, "label": 2, "note": 3}
+SEVERITY_ORDER = {  # the report shows stop findings first
+    "stop": 0, "warn": 1, "label": 2, "note": 3}
 
 
 # ---------- input normalization ----------

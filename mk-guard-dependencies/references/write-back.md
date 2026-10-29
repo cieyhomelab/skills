@@ -18,13 +18,14 @@ This file gives the procedure to change labels and post comments. Step 5 uses it
 4. If the check shows errors, do not correct `changes.json` by hand. Report the errors and stop.
 5. Show the user a table with each change: the issue, the operation, and the reason.
 6. Show the `skipped` list below the table.
-7. Ask the user for "yes". Do not continue without "yes".
-8. If the run is unattended, continue only if the invocation contains the flag. The prompt of a scheduled run counts as the invocation.
-9. Do each change in the sequence of `changes.json`:
+7. Make sure that the task permits each change. Each change must come from `--sync-labels` or `--notify`.
+8. Ask the user for "yes". Do not continue without "yes".
+9. If the run is unattended, continue only if the invocation contains the flag. The prompt of a scheduled run counts as the invocation.
+10. Do each change in the sequence of `changes.json`:
    - `add-label` and `remove-label`: use the label guard from the tracker descriptor.
    - `create-comment`: use **comment-issue** with the `body` exactly.
    - `update-comment`: use **update-comment** with `commentId` and the `body` exactly.
-10. If an operation fails, record it. Continue with the next change.
+11. If an operation fails, record it. Continue with the next change.
 
 ## Verification
 
@@ -33,4 +34,4 @@ This file gives the procedure to change labels and post comments. Step 5 uses it
 3. Make sure that no `C7` finding remains for an issue with a label change.
 4. Make sure that each changed issue has exactly one comment from this skill.
 5. If a check fails, report the issue and the failed operation. Do not try the change again in this run.
-6. Report one line for each applied change. Then write the `Next:` line.
+6. Give the list of applied changes and failed operations to step 5 of the workflow.

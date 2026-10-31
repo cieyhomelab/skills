@@ -9,10 +9,14 @@ Use this default structure. Remove each section that has no content. Write the n
 ```markdown
 🎯 `mk-benchmark` — {verdict}: SPI {spi}, {progressPct}% of the plan earned ({donePct}% done), {plannedPct}% planned on {today}.
 Planned end {plannedEnd}, forecast end {forecastEnd} ({delayWorkingDays} working days). UX coverage {ux.coveragePct}%.
-{Scope: plan file, --source, --epic, read date. Coverage limits from `coverage`. Backlog items with the status Unknown.}
+{Scope: plan file, --source, --epic, read date. Baseline: {baselineMode}, {baselined}. Coverage limits from `coverage`. Backlog items with the status Unknown.}
+
+**Warnings**
+- ⚠️ {each line of `warnings`, without changes}
 
 **Next action**
-1. {one action that changes the verdict most, with the backlog item and the reason}
+1. {the first entry of `readyUnowned`: assign an owner, with the number of items it blocks}
+2. {else: the backlog item that most changes the verdict, with the reason}
 
 **Schedule**
 
@@ -22,15 +26,21 @@ Planned end {plannedEnd}, forecast end {forecastEnd} ({delayWorkingDays} working
 | Planned value (PV) | {plannedValueHours} h |
 | Earned value (EV) | {earnedHours} h |
 | Done (strict) | {doneHours} h |
-| Velocity | {velocityHoursPerDay} h/day ({velocitySource}) |
+| Plan capacity | {planCapacityHoursPerDay} h/day |
+| Velocity (build) | {velocityHoursPerDay} h/day ({velocitySource}) |
+| Forecast | {forecastBuildDays} days of build + {forecastHumanDays} days of human work |
 
 **Status of the backlog items:** {statusCounts as "Done 4 · In review 2 · ..."}
+
+**Waiting on dependencies:** {each entry of `waiting`: item → #issues. Remove if empty.}
+
+**Ready, no owner:** {each entry of `readyUnowned`, with `blocks`. Remove if empty.}
 
 **Unplanned scope:** {unplanned items, or remove this line}
 
 **Cost:** {humanHours} human h, {agentHours} agent h, {cost} {currency}, CPI {cpi}. {Remove if `cost` is null.}
 
-**Agents (Cezar):** {running} running · {waiting} waiting for you · {queued} queued. {Remove if `cezar` is null.}
+**Agents (Cezar):** {running} running · {waiting} waiting for you · {queued} queued. {If `selfIncluded`, add "(includes this run)". Remove if `cezar` is null.}
 
 **UX coverage vs {ux.reference}** ({ux.method})
 
@@ -43,9 +53,9 @@ Planned end {plannedEnd}, forecast end {forecastEnd} ({delayWorkingDays} working
 
 <details><summary>All backlog items ({n})</summary>
 
-| Item | Size | Sprint | Status | Earned |
-|---|---|---|---|---|
-| {id} — {title} (#{issue}) | {size} | {sprint} | {status}{ ⛔ if blocked} | {earned}/{hours} h |
+| Item | Size | Kind | Sprint | Status | Owner | Earned |
+|---|---|---|---|---|---|---|
+| {id} — {title} (#{issue}) | {size} | {kind} | {sprint} | {status}{ ⛔ if blocked} | {assignees or —} | {earned}/{hours} h |
 
 </details>
 
@@ -66,6 +76,6 @@ Planned end {plannedEnd}, forecast end {forecastEnd} ({delayWorkingDays} working
 ## Rules for the text
 
 1. Start with the verdict and the next action.
-2. If the SPI and the forecast disagree, write both and give the reason. Example: the velocity of the last week is higher than the plan capacity.
+2. If the SPI and the forecast disagree, write both. Use the reason from `warnings`. Do not add your own forecast.
 3. Write the credit rule one time: an open PR earns part of the hours, a done backlog item earns all hours.
 4. Do not give a judgement about the product quality or the code quality.

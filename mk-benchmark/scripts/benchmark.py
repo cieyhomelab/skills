@@ -3,6 +3,7 @@
 
 Commands:
   schedule <plan.md>                      Fill the empty or "auto" Sprint cells in place.
+  freeze <plan.md> <snapshot.json>        Write "Baselined" and "Earned at baseline" in place.
   check <plan.md>                         Validate the plan. Exit 1 on errors.
   analyze <plan.md> <snapshot.json> [--history DIR] [--save]
                                           Print the benchmark result as JSON.
@@ -24,6 +25,8 @@ SPI_ON_TRACK = 0.95  # SPI at or above this value: on track
 SPI_AT_RISK = 0.80  # SPI at or above this value and below SPI_ON_TRACK: at risk
 TREND_POINTS = 3  # the last 3 snapshots give the velocity trend
 MAX_FORECAST_DAYS = 2000  # stop the forecast after about 8 years of working days
+VELOCITY_WARN_RATIO = 2.0  # a measured velocity above 2x the plan capacity gives a warning
+KINDS = ("build", "human")  # build: agents can speed it up; human: interviews, decisions
 
 # Credit for each status: the part of the item's planned hours that counts as earned value.
 CREDIT = {
@@ -34,6 +37,7 @@ CREDIT = {
     "Building": 0.4,
     "Spec": 0.2,
     "Not started": 0.0,
+    "Waiting on dependency": 0.0,
     "Unknown": 0.0,
     "Dropped": 0.0,
 }
@@ -96,7 +100,11 @@ HEADER_KEYS = {
     "buffer": "buffer",
     "size table": "sizes",
     "baselined": "baselined",
+    "earned at baseline": "earned_at_baseline",
 }
+EARNED_RE = re.compile(
+    r"^\s*(\d+(?:\.\d+)?)\s*(?:\(\s*build\s+(\d+(?:\.\d+)?)\s*,\s*human\s+(\d+(?:\.\d+)?)\s*\))?\s*$"
+)
 
 
 def parse_table_row(line):
@@ -183,6 +191,25 @@ def normalize_plan(header, items):
                 continue
             sizes[m.group(1).upper()] = float(m.group(2))
     plan["sizes"] = sizes
+    plan["baselined"] = None
+    if header.get("baselined"):
+        try:
+            plan["baselined"] = parse_date(header["baselined"].strip(), "Baselined")
+        except PlanError as e:
+            errors.append(str(e))
+    plan["eab"], plan["eab_build"] = 0.0, None
+    if header.get("earned_at_baseline"):
+        m = EARNED_RE.match(header["earned_at_baseline"])
+        if not m:
+            errors.append(
+                "Earned at baseline: expected '180' or '180 (build 170, human 10)', "
+                f"got {header['earned_at_baseline']!r}"
+            )
+        else:
+            plan["eab"] = float(m.group(1))
+            plan["eab_build"] = float(m.group(2)) if m.group(2) else None
+        if plan["eab"] > 0 and plan["baselined"] is None:
+            errors.append("Earned at baseline needs a Baselined date")
     seen = set()
     norm_items = []
     for n, row in enumerate(items, 1):
@@ -202,6 +229,10 @@ def normalize_plan(header, items):
             hours = 0.0
         else:
             hours = sizes[size]
+        kind = (row.get("kind") or "build").strip().lower() or "build"
+        if kind not in KINDS:
+            errors.append(f"row {n} ({iid}): Kind {kind!r} must be one of {list(KINDS)}")
+            kind = "build"
         sprint = row.get("sprint", "").strip().lower()
         if sprint not in ("", "auto") and not sprint.isdigit():
             errors.append(f"row {n} ({iid}): Sprint {sprint!r} must be a number, auto, or empty")
@@ -212,6 +243,7 @@ def normalize_plan(header, items):
                 "title": row.get("title", ""),
                 "size": size,
                 "hours": hours,
+                "kind": kind,
                 "sprint": int(sprint) if sprint.isdigit() else None,
             }
         )
@@ -226,14 +258,23 @@ def daily_capacity(plan):
     return plan["fte"] * plan["focus_hours"] / (1.0 + plan["buffer"])
 
 
+def anchor(plan):
+    """The date and the earned hours from which the plan counts planned value."""
+    if plan["eab"] > 0 and plan["baselined"] is not None:
+        return plan["baselined"], plan["eab"], "retrospective"
+    return plan["start"], 0.0, "forward"
+
+
 def cmd_check(path):
     header, items, *_ = read_plan(path)
     plan, errors = normalize_plan(header, items)
     total = sum(i["hours"] for i in plan["items"])
     out = {"ok": not errors, "errors": errors, "items": len(plan["items"]), "plannedHours": total}
     if not errors:
-        days = math.ceil(total / daily_capacity(plan))
-        out["plannedEnd"] = add_working_days(plan["start"], days).isoformat()
+        a_date, a_ev, mode = anchor(plan)
+        days = math.ceil(max(0.0, total - a_ev) / daily_capacity(plan))
+        out["baselineMode"] = mode
+        out["plannedEnd"] = add_working_days(a_date, days).isoformat()
         out["plannedWorkingDays"] = days
     print(json.dumps(out, indent=2))
     return 0 if not errors else 1
@@ -309,21 +350,29 @@ def classify(snap_item):
 # ---------- analysis ----------
 
 
-def load_history(history_dir, today):
+def load_history(history_dir, today, since):
+    """Saved points (date, earned build hours) before today and on or after since."""
     points = []
     if not history_dir or not os.path.isdir(history_dir):
         return points
     for name in sorted(os.listdir(history_dir)):
         m = re.match(r"^(\d{4}-\d{2}-\d{2})\.json$", name)
-        if not m or m.group(1) >= today.isoformat():
+        if not m or m.group(1) >= today.isoformat() or m.group(1) < since.isoformat():
             continue
         try:
             with open(os.path.join(history_dir, name), encoding="utf-8") as f:
-                data = json.load(f)
-            points.append((dt.date.fromisoformat(m.group(1)), float(data["result"]["earnedHours"])))
+                res = json.load(f)["result"]
+            value = res.get("earnedBuildHours", res["earnedHours"])
+            points.append((dt.date.fromisoformat(m.group(1)), float(value)))
         except HISTORY_ERRORS:
             continue
     return points
+
+
+def dep_issue(dep):
+    if isinstance(dep, dict):
+        return dep.get("issue")
+    return dep
 
 
 def ux_coverage(ux):
@@ -361,6 +410,20 @@ def ux_coverage(ux):
     return out
 
 
+def resolve_dep(dep, rows_by_issue, by_issue):
+    """True if the dependency is resolved, False if not, None if its state is unknown."""
+    if isinstance(dep, dict) and dep.get("state"):
+        return str(dep["state"]).lower() == "closed"
+    num = dep_issue(dep)
+    row = rows_by_issue.get(num)
+    if row is not None:
+        return row["status"] in ("Done", "Done (no PR)", "Dropped")
+    s = by_issue.get(num)
+    if s is not None and not s.get("readError"):
+        return (s.get("state") or "").lower() == "closed"
+    return None
+
+
 def analyze(plan, snap, history_dir):
     today = parse_date(snap.get("today", ""), "snapshot today")
     by_issue = {}
@@ -378,7 +441,6 @@ def analyze(plan, snap, history_dir):
         if s is None:
             s = by_id.get(item["id"])
         status, why = classify(s)
-        credit = CREDIT[status]
         rows.append(
             {
                 "id": item["id"],
@@ -386,10 +448,14 @@ def analyze(plan, snap, history_dir):
                 "title": item["title"],
                 "size": item["size"],
                 "hours": item["hours"],
+                "kind": item["kind"],
                 "sprint": item["sprint"],
                 "status": status,
                 "reason": why,
-                "earned": round(item["hours"] * credit, 2),
+                "assignees": list((s or {}).get("assignees") or []),
+                "dependsOn": [dep_issue(d) for d in (s or {}).get("dependsOn") or []],
+                "waitingOn": [],
+                "blocks": 0,
                 "blocked": bool(
                     s
                     and any(
@@ -399,21 +465,53 @@ def analyze(plan, snap, history_dir):
                 ),
             }
         )
+
+    # Dependencies: a backlog item that is not done waits on each unresolved dependency.
+    rows_by_issue = {r["issue"]: r for r in rows if r["issue"] is not None}
+    unknown_deps = set()
+    for k, item in enumerate(plan["items"]):
+        r = rows[k]
+        s = by_issue.get(item["issue"]) if item["issue"] is not None else by_id.get(item["id"])
+        if r["status"] in ("Done", "Done (no PR)", "Dropped"):
+            continue
+        for dep in (s or {}).get("dependsOn") or []:
+            state = resolve_dep(dep, rows_by_issue, by_issue)
+            if state is True:
+                continue
+            r["waitingOn"].append(dep_issue(dep))
+            if state is None:
+                unknown_deps.add(dep_issue(dep))
+            blocker = rows_by_issue.get(dep_issue(dep))
+            if blocker is not None:
+                blocker["blocks"] += 1
+        if r["waitingOn"] and r["status"] == "Not started":
+            r["status"] = "Waiting on dependency"
+            r["reason"] = "waits on " + ", ".join(f"#{n}" for n in r["waitingOn"])
+    for r in rows:
+        r["earned"] = round(r["hours"] * CREDIT[r["status"]], 2)
+
     planned_issues = {i["issue"] for i in plan["items"] if i["issue"] is not None}
     unplanned = [
         {"id": s.get("id"), "issue": s.get("issue"), "title": s.get("title")}
         for s in snap.get("items") or []
-        if s.get("id") not in planned_ids and s.get("issue") not in planned_issues
+        if s.get("id") not in planned_ids
+        and s.get("issue") not in planned_issues
+        and not s.get("dependencyOnly")
     ]
     active = [r for r in rows if r["status"] != "Dropped"]
     total = sum(r["hours"] for r in active)
     earned = sum(r["earned"] for r in active)
     strict = sum(r["hours"] for r in active if r["status"] in ("Done", "Done (no PR)"))
+    earned_build = sum(r["earned"] for r in active if r["kind"] == "build")
+    remaining_build = sum(r["hours"] - r["earned"] for r in active if r["kind"] == "build")
+    remaining_human = sum(r["hours"] - r["earned"] for r in active if r["kind"] == "human")
+
     cap = daily_capacity(plan)
-    elapsed = max(0, working_days_between(plan["start"], today))
-    planned_value = min(total, elapsed * cap)
-    planned_days = math.ceil(total / cap) if cap > 0 else 0
-    planned_end = add_working_days(plan["start"], planned_days)
+    a_date, a_ev, mode = anchor(plan)
+    since_anchor = max(0, working_days_between(a_date, today))
+    planned_value = min(total, a_ev + since_anchor * cap)
+    planned_days = math.ceil(max(0.0, total - a_ev) / cap) if cap > 0 else 0
+    planned_end = add_working_days(a_date, planned_days)
 
     if total == 0:
         verdict, spi = "unknown", None
@@ -430,27 +528,54 @@ def analyze(plan, snap, history_dir):
     if total > 0 and earned >= total:
         verdict = "complete"
 
-    history = load_history(history_dir, today)
+    # Velocity: measured on build work only, from the anchor date.
+    warnings = []
     velocity, velocity_source = None, None
+    history = load_history(history_dir, today, a_date)
     trend = history[-(TREND_POINTS - 1) :] if history else []
     if trend:
         d0, ev0 = trend[0]
         days = working_days_between(d0, today)
-        if days > 0 and earned - ev0 > 0:
-            velocity = (earned - ev0) / days
-            velocity_source = f"trend since {d0.isoformat()} ({len(trend) + 1} points)"
-    if velocity is None and elapsed > 0 and earned > 0:
-        velocity = earned / elapsed
-        velocity_source = f"average since start ({elapsed} working days)"
-    remaining = max(0.0, total - earned)
+        if days > 0 and earned_build - ev0 > 0:
+            velocity = (earned_build - ev0) / days
+            velocity_source = f"build trend since {d0.isoformat()} ({len(trend) + 1} points)"
+    if velocity is None and since_anchor > 0:
+        base = 0.0
+        if mode == "retrospective":
+            base = plan["eab_build"] if plan["eab_build"] is not None else a_ev
+        if earned_build - base > 0:
+            velocity = (earned_build - base) / since_anchor
+            velocity_source = (
+                f"build average since {a_date.isoformat()} ({since_anchor} working days)"
+            )
+    build_velocity = velocity
+    if build_velocity is None:
+        build_velocity = cap
+        velocity_source = "plan capacity (no measured build velocity yet)"
+    if velocity and velocity > VELOCITY_WARN_RATIO * cap:
+        warnings.append(
+            f"build velocity {velocity:.1f} h/day is {velocity / cap:.1f}x the plan capacity "
+            f"{cap:.1f} h/day: the sizes are too small, or agents do the work"
+        )
+    if mode == "retrospective" and total > 0:
+        warnings.append(
+            f"retrospective baseline: {a_ev:.0f} of {total:.0f} h were earned before "
+            f"{a_date.isoformat()}; SPI measures only the work after that date"
+        )
+    if unknown_deps:
+        warnings.append(
+            "dependency state unknown for "
+            + ", ".join(f"#{n}" for n in sorted(unknown_deps, key=str))
+            + "; counted as not resolved"
+        )
+
+    build_days = remaining_build / build_velocity if remaining_build > 0 else 0.0
+    human_days = remaining_human / cap if remaining_human > 0 else 0.0
+    need = build_days + human_days
     forecast_end, delay = None, None
-    if remaining == 0 and total > 0:
-        forecast_end, delay = today, working_days_between(planned_end, today)
-    elif velocity:
-        need = remaining / velocity
-        if need <= MAX_FORECAST_DAYS:
-            forecast_end = add_working_days(today, need)
-            delay = working_days_between(planned_end, forecast_end)
+    if total > 0 and need <= MAX_FORECAST_DAYS:
+        forecast_end = add_working_days(today, need)
+        delay = working_days_between(planned_end, forecast_end)
 
     actuals = snap.get("actuals") or None
     cost = None
@@ -465,25 +590,53 @@ def analyze(plan, snap, history_dir):
     for r in rows:
         counts[r["status"]] = counts.get(r["status"], 0) + 1
 
-    result = {
+    def brief(r):
+        return {
+            "id": r["id"],
+            "issue": r["issue"],
+            "title": r["title"],
+            "blocks": r["blocks"],
+            "waitingOn": r["waitingOn"],
+        }
+
+    plan_order = {r["id"]: k for k, r in enumerate(rows)}
+    ready_unowned = sorted(
+        (r for r in rows if r["status"] == "Not started" and not r["assignees"]),
+        key=lambda r: (-r["blocks"], plan_order[r["id"]]),
+    )
+    waiting = [r for r in rows if r["waitingOn"]]
+
+    return {
         "today": today.isoformat(),
         "planType": plan["type"],
         "start": plan["start"].isoformat(),
+        "baselineMode": mode,
+        "baselined": plan["baselined"].isoformat() if plan["baselined"] else None,
+        "earnedAtBaseline": a_ev,
         "plannedHours": round(total, 2),
         "plannedValueHours": round(planned_value, 2),
         "earnedHours": round(earned, 2),
+        "earnedBuildHours": round(earned_build, 2),
         "doneHours": round(strict, 2),
+        "remainingBuildHours": round(remaining_build, 2),
+        "remainingHumanHours": round(remaining_human, 2),
         "progressPct": round(100.0 * earned / total, 1) if total else None,
         "donePct": round(100.0 * strict / total, 1) if total else None,
         "plannedPct": round(100.0 * planned_value / total, 1) if total else None,
         "spi": round(spi, 2) if spi is not None else None,
         "verdict": verdict,
+        "planCapacityHoursPerDay": round(cap, 2),
         "plannedEnd": planned_end.isoformat(),
         "forecastEnd": forecast_end.isoformat() if forecast_end else None,
+        "forecastBuildDays": round(build_days, 1),
+        "forecastHumanDays": round(human_days, 1),
         "delayWorkingDays": delay,
         "velocityHoursPerDay": round(velocity, 2) if velocity else None,
         "velocitySource": velocity_source,
+        "warnings": warnings,
         "statusCounts": counts,
+        "readyUnowned": [brief(r) for r in ready_unowned],
+        "waiting": [brief(r) for r in waiting],
         "items": rows,
         "unplanned": unplanned,
         "cost": cost,
@@ -491,7 +644,54 @@ def analyze(plan, snap, history_dir):
         "ux": ux_coverage(snap.get("ux")),
         "coverage": snap.get("coverage") or [],
     }
-    return result
+
+
+def cmd_freeze(plan_path, snap_path):
+    """Write the baseline date and the earned hours on that date into the plan file."""
+    header, items, lines, table_start, _cols, _rows = read_plan(plan_path)
+    plan, errors = normalize_plan(header, items)
+    if errors:
+        print(json.dumps({"ok": False, "errors": errors}, indent=2))
+        return 1
+    with open(snap_path, encoding="utf-8") as f:
+        snap = json.load(f)
+    plan["eab"], plan["eab_build"], plan["baselined"] = 0.0, None, None
+    res = analyze(plan, snap, None)
+    build = res["earnedBuildHours"]
+    human = round(res["earnedHours"] - build, 2)
+    new = [
+        f"- Baselined: {res['today']}",
+        f"- Earned at baseline: {res['earnedHours']:g} (build {build:g}, human {human:g})",
+    ]
+    keys = ("baselined", "earned at baseline")
+    keep, last_header = [], None
+    for line in lines[:table_start]:
+        m = re.match(r"^\s*-?\s*([A-Za-z ()]+):", line)
+        key = m.group(1).strip().lower() if m else None
+        if key in keys:
+            continue
+        keep.append(line)
+        if key in HEADER_KEYS:
+            last_header = len(keep) - 1
+    if last_header is None:
+        print(json.dumps({"ok": False, "errors": ["no header lines found"]}, indent=2))
+        return 1
+    head = keep[: last_header + 1] + new + keep[last_header + 1 :]
+    with open(plan_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(head + lines[table_start:]))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "baselined": res["today"],
+                "earnedAtBaseline": res["earnedHours"],
+                "build": build,
+                "human": human,
+            },
+            indent=2,
+        )
+    )
+    return 0
 
 
 def cmd_analyze(plan_path, snap_path, history_dir, save):
@@ -528,6 +728,9 @@ def main(argv):
     s.add_argument("plan")
     c = sub.add_parser("check")
     c.add_argument("plan")
+    fz = sub.add_parser("freeze")
+    fz.add_argument("plan")
+    fz.add_argument("snapshot")
     a = sub.add_parser("analyze")
     a.add_argument("plan")
     a.add_argument("snapshot")
@@ -539,8 +742,10 @@ def main(argv):
             return cmd_schedule(args.plan)
         if args.cmd == "check":
             return cmd_check(args.plan)
+        if args.cmd == "freeze":
+            return cmd_freeze(args.plan, args.snapshot)
         return cmd_analyze(args.plan, args.snapshot, args.history, args.save)
-    except FILE_ERRORS as e:
+    except SNAPSHOT_ERRORS as e:
         print(json.dumps({"ok": False, "errors": [str(e)]}, indent=2))
         return 1
 

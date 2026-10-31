@@ -2,7 +2,7 @@
 """Deterministic calculations for the mk-benchmark skill.
 
 Commands:
-  schedule <plan.md>                      Fill the empty or "auto" Sprint cells of the plan in place.
+  schedule <plan.md>                      Fill the empty or "auto" Sprint cells in place.
   check <plan.md>                         Validate the plan. Exit 1 on errors.
   analyze <plan.md> <snapshot.json> [--history DIR] [--save]
                                           Print the benchmark result as JSON.
@@ -10,6 +10,7 @@ Commands:
 
 Needs only Python 3.8 or later. The model runs this script. It does not read it.
 """
+
 import argparse
 import datetime as dt
 import json
@@ -20,8 +21,8 @@ import sys
 
 DEFAULT_SIZES = {"XS": 2, "S": 4, "M": 8, "L": 16, "XL": 32}  # hours of human focus work per size
 SPI_ON_TRACK = 0.95  # SPI at or above this value: on track
-SPI_AT_RISK = 0.80   # SPI at or above this value and below SPI_ON_TRACK: at risk
-TREND_POINTS = 3     # the last 3 snapshots give the velocity trend
+SPI_AT_RISK = 0.80  # SPI at or above this value and below SPI_ON_TRACK: at risk
+TREND_POINTS = 3  # the last 3 snapshots give the velocity trend
 MAX_FORECAST_DAYS = 2000  # stop the forecast after about 8 years of working days
 
 # Credit for each status: the part of the item's planned hours that counts as earned value.
@@ -45,7 +46,15 @@ class PlanError(Exception):
     pass
 
 
+# Exception groups as named tuples. Ruff with target py314 rewrites "except (A, B):"
+# to "except A, B:", which runs only on Python 3.14. A name keeps Python 3.8 support.
+FILE_ERRORS = (OSError, PlanError)
+SNAPSHOT_ERRORS = (OSError, ValueError, PlanError)
+HISTORY_ERRORS = (OSError, ValueError, KeyError, TypeError)
+
+
 # ---------- dates ----------
+
 
 def parse_date(value, field):
     if not isinstance(value, str) or not DATE_RE.match(value):
@@ -68,7 +77,7 @@ def working_days_between(start, end):
 
 def add_working_days(start, n):
     d = start
-    left = int(math.ceil(n))
+    left = math.ceil(n)
     while left > 0:
         d += dt.timedelta(days=1)
         if d.weekday() < 5:
@@ -107,7 +116,10 @@ def read_plan(path):
         if line.strip().startswith("|") and table_start is None:
             table_start = i
     if table_start is None:
-        raise PlanError("no item table found (a Markdown table with the columns Id | Issue | Title | Size | Sprint)")
+        raise PlanError(
+            "no item table found (a Markdown table with the columns "
+            "Id | Issue | Title | Size | Sprint)"
+        )
     cols = [c.lower() for c in parse_table_row(lines[table_start])]
     need = ["id", "issue", "title", "size", "sprint"]
     missing = [c for c in need if c not in cols]
@@ -122,7 +134,7 @@ def read_plan(path):
         cells = parse_table_row(line)
         if len(cells) < len(cols):
             cells += [""] * (len(cols) - len(cells))
-        row = dict(zip(cols, cells))
+        row = {col: cells[k] for k, col in enumerate(cols)}
         items.append(row)
         row_lines.append(j)
     return header, items, lines, table_start, cols, row_lines
@@ -138,9 +150,11 @@ def normalize_plan(header, items):
     plan["type"] = (header.get("type") or "MVP").strip().upper()
     if plan["type"] not in ("POC", "MVP"):
         errors.append(f"Type: expected POC or MVP, got {plan['type']!r}")
-    for key, label, default in (("sprint_days", "Sprint length (working days)", 10),
-                                ("fte", "Team FTE", 1),
-                                ("focus_hours", "Focus hours per day", 6)):
+    for key, label, default in (
+        ("sprint_days", "Sprint length (working days)", 10),
+        ("fte", "Team FTE", 1),
+        ("focus_hours", "Focus hours per day", 6),
+    ):
         raw = header.get(key)
         try:
             plan[key] = float(raw) if raw is not None else float(default)
@@ -182,21 +196,25 @@ def normalize_plan(header, items):
         issue_raw = re.sub(r"[^0-9]", "", row.get("issue", ""))
         size = row.get("size", "").strip().upper()
         if size not in sizes:
-            errors.append(f"row {n} ({iid}): Size {size!r} is not in the size table {sorted(sizes)}")
+            errors.append(
+                f"row {n} ({iid}): Size {size!r} is not in the size table {sorted(sizes)}"
+            )
             hours = 0.0
         else:
             hours = sizes[size]
         sprint = row.get("sprint", "").strip().lower()
         if sprint not in ("", "auto") and not sprint.isdigit():
             errors.append(f"row {n} ({iid}): Sprint {sprint!r} must be a number, auto, or empty")
-        norm_items.append({
-            "id": iid,
-            "issue": int(issue_raw) if issue_raw else None,
-            "title": row.get("title", ""),
-            "size": size,
-            "hours": hours,
-            "sprint": int(sprint) if sprint.isdigit() else None,
-        })
+        norm_items.append(
+            {
+                "id": iid,
+                "issue": int(issue_raw) if issue_raw else None,
+                "title": row.get("title", ""),
+                "size": size,
+                "hours": hours,
+                "sprint": int(sprint) if sprint.isdigit() else None,
+            }
+        )
     if not norm_items:
         errors.append("the item table has no rows")
     plan["items"] = norm_items
@@ -222,7 +240,7 @@ def cmd_check(path):
 
 
 def cmd_schedule(path):
-    header, items, lines, table_start, cols, row_lines = read_plan(path)
+    header, items, lines, _table_start, cols, row_lines = read_plan(path)
     plan, errors = normalize_plan(header, items)
     if errors:
         print(json.dumps({"ok": False, "errors": errors}, indent=2))
@@ -231,7 +249,8 @@ def cmd_schedule(path):
     cum = 0.0
     sprint_idx = cols.index("sprint")
     changed = 0
-    for item, j in zip(plan["items"], row_lines):
+    for k, item in enumerate(plan["items"]):
+        j = row_lines[k]
         cum += item["hours"]
         if item["sprint"] is None:
             cells = parse_table_row(lines[j])
@@ -241,12 +260,21 @@ def cmd_schedule(path):
             changed += 1
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    print(json.dumps({"ok": True, "filledSprints": changed,
-                      "sprints": max(1, math.ceil(cum / per_sprint - 1e-9))}, indent=2))
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "filledSprints": changed,
+                "sprints": max(1, math.ceil(cum / per_sprint - 1e-9)),
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
 # ---------- status ----------
+
 
 def classify(snap_item):
     if snap_item is None:
@@ -280,6 +308,7 @@ def classify(snap_item):
 
 # ---------- analysis ----------
 
+
 def load_history(history_dir, today):
     points = []
     if not history_dir or not os.path.isdir(history_dir):
@@ -292,7 +321,7 @@ def load_history(history_dir, today):
             with open(os.path.join(history_dir, name), encoding="utf-8") as f:
                 data = json.load(f)
             points.append((dt.date.fromisoformat(m.group(1)), float(data["result"]["earnedHours"])))
-        except (OSError, ValueError, KeyError, TypeError):
+        except HISTORY_ERRORS:
             continue
     return points
 
@@ -300,7 +329,12 @@ def load_history(history_dir, today):
 def ux_coverage(ux):
     if not ux or not ux.get("entries"):
         return None
-    out = {"reference": ux.get("reference"), "method": ux.get("method"), "groups": {}, "missing": []}
+    out = {
+        "reference": ux.get("reference"),
+        "method": ux.get("method"),
+        "groups": {},
+        "missing": [],
+    }
     total_credit = 0.0
     total_n = 0
     for e in ux["entries"]:
@@ -308,14 +342,18 @@ def ux_coverage(ux):
         status = (e.get("status") or "missing").lower()
         if status not in UX_CREDIT:
             status = "missing"
-        g = out["groups"].setdefault(kind, {"present": 0, "partial": 0, "missing": 0, "credit": 0.0, "n": 0})
+        g = out["groups"].setdefault(
+            kind, {"present": 0, "partial": 0, "missing": 0, "credit": 0.0, "n": 0}
+        )
         g[status] += 1
         g["credit"] += UX_CREDIT[status]
         g["n"] += 1
         total_credit += UX_CREDIT[status]
         total_n += 1
         if status != "present":
-            out["missing"].append({"id": e.get("id"), "name": e.get("name"), "kind": kind, "status": status})
+            out["missing"].append(
+                {"id": e.get("id"), "name": e.get("name"), "kind": kind, "status": status}
+            )
     for g in out["groups"].values():
         g["coveragePct"] = round(100.0 * g["credit"] / g["n"], 1)
         del g["credit"]
@@ -341,13 +379,26 @@ def analyze(plan, snap, history_dir):
             s = by_id.get(item["id"])
         status, why = classify(s)
         credit = CREDIT[status]
-        rows.append({
-            "id": item["id"], "issue": item["issue"], "title": item["title"], "size": item["size"],
-            "hours": item["hours"], "sprint": item["sprint"], "status": status, "reason": why,
-            "earned": round(item["hours"] * credit, 2),
-            "blocked": bool(s and any(str(x).lower() in ("blocked", "do-not-merge", "qa-failed")
-                                      for x in s.get("labels") or [])),
-        })
+        rows.append(
+            {
+                "id": item["id"],
+                "issue": item["issue"],
+                "title": item["title"],
+                "size": item["size"],
+                "hours": item["hours"],
+                "sprint": item["sprint"],
+                "status": status,
+                "reason": why,
+                "earned": round(item["hours"] * credit, 2),
+                "blocked": bool(
+                    s
+                    and any(
+                        str(x).lower() in ("blocked", "do-not-merge", "qa-failed")
+                        for x in s.get("labels") or []
+                    )
+                ),
+            }
+        )
     planned_issues = {i["issue"] for i in plan["items"] if i["issue"] is not None}
     unplanned = [
         {"id": s.get("id"), "issue": s.get("issue"), "title": s.get("title")}
@@ -381,7 +432,7 @@ def analyze(plan, snap, history_dir):
 
     history = load_history(history_dir, today)
     velocity, velocity_source = None, None
-    trend = history[-(TREND_POINTS - 1):] if history else []
+    trend = history[-(TREND_POINTS - 1) :] if history else []
     if trend:
         d0, ev0 = trend[0]
         days = working_days_between(d0, today)
@@ -453,7 +504,7 @@ def cmd_analyze(plan_path, snap_path, history_dir, save):
         with open(snap_path, encoding="utf-8") as f:
             snap = json.load(f)
         result = analyze(plan, snap, history_dir)
-    except (OSError, ValueError, PlanError) as e:
+    except SNAPSHOT_ERRORS as e:
         print(json.dumps({"ok": False, "errors": [f"snapshot: {e}"]}, indent=2))
         return 1
     out = {"ok": True, "result": result}
@@ -473,10 +524,15 @@ def cmd_analyze(plan_path, snap_path, history_dir, save):
 def main(argv):
     p = argparse.ArgumentParser(description="mk-benchmark calculations")
     sub = p.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("schedule"); s.add_argument("plan")
-    c = sub.add_parser("check"); c.add_argument("plan")
-    a = sub.add_parser("analyze"); a.add_argument("plan"); a.add_argument("snapshot")
-    a.add_argument("--history"); a.add_argument("--save", action="store_true")
+    s = sub.add_parser("schedule")
+    s.add_argument("plan")
+    c = sub.add_parser("check")
+    c.add_argument("plan")
+    a = sub.add_parser("analyze")
+    a.add_argument("plan")
+    a.add_argument("snapshot")
+    a.add_argument("--history")
+    a.add_argument("--save", action="store_true")
     args = p.parse_args(argv)
     try:
         if args.cmd == "schedule":
@@ -484,7 +540,7 @@ def main(argv):
         if args.cmd == "check":
             return cmd_check(args.plan)
         return cmd_analyze(args.plan, args.snapshot, args.history, args.save)
-    except (OSError, PlanError) as e:
+    except FILE_ERRORS as e:
         print(json.dumps({"ok": False, "errors": [str(e)]}, indent=2))
         return 1
 

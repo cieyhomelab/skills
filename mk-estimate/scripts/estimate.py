@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Deterministic calculations for the mk-estimate skill.
 
 Usage:
@@ -10,6 +9,7 @@ prices from references/model-prices.md (the first JSON block in each file).
 It writes one JSON object to stdout. On an input error it writes a message to
 stderr and exits with code 2. It needs Python 3.9 or later and no packages.
 """
+
 import argparse
 import json
 import math
@@ -31,7 +31,7 @@ def fail(message):
 
 def json_block(path):
     text = path.read_text(encoding="utf-8")
-    match = re.search(r"```json\n(.*?)\n```", text, re.S)
+    match = re.search(r"```json\n(.*?)\n```", text, re.DOTALL)
     if not match:
         fail(f"no JSON block in {path}")
     return json.loads(match.group(1))
@@ -80,6 +80,7 @@ def size_hours(cfg, target, size):
 
 # --------------------------------------------------------------------- estimate
 
+
 def work_item_rows(cfg, target, items):
     rows, split_first = [], []
     for item in items:
@@ -102,10 +103,16 @@ def work_item_rows(cfg, target, items):
             human = hours["human"] - (hours["spec"] if spec_done else 0)
             agent = hours["agent"]
             kind = "offBacklog" if item.get("offBacklog") else "backlog"
-        rows.append({
-            "id": item_id, "size": size, "costedAs": cost_size, "kind": kind,
-            "human": r2(human), "agent": r2(agent),
-        })
+        rows.append(
+            {
+                "id": item_id,
+                "size": size,
+                "costedAs": cost_size,
+                "kind": kind,
+                "human": r2(human),
+                "agent": r2(agent),
+            }
+        )
     return rows, split_first
 
 
@@ -129,7 +136,9 @@ def question_rows(cfg, questions, by_id, subtotal):
         blocks = question.get("blocks") or []
         missing = [b for b in blocks if b not in by_id]
         if missing:
-            fail(f"question {question.get('id')} blocks unknown ids {missing}; known: {sorted(by_id)}")
+            fail(
+                f"question {question.get('id')} blocks unknown ids {missing}; known: {sorted(by_id)}"
+            )
         if blocks:
             share = cfg["buffer"]["perBlockingQuestion"]
             human = share * sum(by_id[b]["human"] for b in blocks)
@@ -139,8 +148,15 @@ def question_rows(cfg, questions, by_id, subtotal):
             share = cfg["buffer"]["perUnscopedQuestion"]
             human, agent = share * subtotal["human"], share * subtotal["agent"]
             scoped = False
-        rows.append({"id": question.get("id"), "blocks": blocks, "scoped": scoped,
-                     "human": r2(human), "agent": r2(agent)})
+        rows.append(
+            {
+                "id": question.get("id"),
+                "blocks": blocks,
+                "scoped": scoped,
+                "human": r2(human),
+                "agent": r2(agent),
+            }
+        )
     return rows
 
 
@@ -152,9 +168,14 @@ def resolve_prices(cfg, given):
         source.setdefault("source", "interview")
         return source
     catalog = json_block(SKILL_DIR / "references" / "model-prices.md")
-    return {"source": "catalog", "asOf": catalog["asOf"], "currency": catalog["currency"],
-            "models": catalog["models"], "seatPrice": catalog["seats"].get(cfg["seat"]),
-            "seat": cfg["seat"]}
+    return {
+        "source": "catalog",
+        "asOf": catalog["asOf"],
+        "currency": catalog["currency"],
+        "models": catalog["models"],
+        "seatPrice": catalog["seats"].get(cfg["seat"]),
+        "seat": cfg["seat"],
+    }
 
 
 def cost(cfg, agent_hours, sprints, devs, prices):
@@ -162,8 +183,13 @@ def cost(cfg, agent_hours, sprints, devs, prices):
     factor = 1 + tok["reviewOverhead"]
     tokens_in = agent_hours * tok["inputPerAgentHour"] * factor
     tokens_out = agent_hours * tok["outputPerAgentHour"] * factor
-    result = {"apiTokens": round(tokens_in + tokens_out), "api": None, "apiByTier": {},
-              "subscription": None, "months": math.ceil(sprints * cfg["sprint"]["days"] / CALENDAR_DAYS_PER_MONTH)}
+    result = {
+        "apiTokens": round(tokens_in + tokens_out),
+        "api": None,
+        "apiByTier": {},
+        "subscription": None,
+        "months": math.ceil(sprints * cfg["sprint"]["days"] / CALENDAR_DAYS_PER_MONTH),
+    }
     if prices is None:
         return result
     total, priced = 0.0, True
@@ -177,7 +203,9 @@ def cost(cfg, agent_hours, sprints, devs, prices):
         cached = tokens_in * share * tok["cachedShare"]
         uncached = tokens_in * share * (1 - tok["cachedShare"])
         out = tokens_out * share
-        value = (cached * p["cachedInput"] + uncached * p["input"] + out * p["output"]) / 1_000_000
+        value = (
+            cached * p["cachedInput"] + uncached * p["input"] + out * p["output"]
+        ) / 1_000_000
         result["apiByTier"][tier] = round(value, 2)
         total += value
     result["api"] = round(total, 2) if priced else None
@@ -198,18 +226,27 @@ def run_estimate(cfg, data):
     epic_scoped = bool(data.get("epicScoped"))
 
     items, split_first = work_item_rows(cfg, target, data.get("workItems", []))
-    phases = phase_rows(cfg, target, data.get("phasesToDo", []), int(data.get("openEpics", 0)))
+    phases = phase_rows(
+        cfg, target, data.get("phasesToDo", []), int(data.get("openEpics", 0))
+    )
     by_id = {row["id"]: row for row in items + phases}
 
     def total(rows, clock):
         return sum(row[clock] for row in rows)
 
-    subtotal = {clock: total(items, clock) + total(phases, clock) for clock in ("human", "agent")}
-    base_share = cfg["buffer"][target] + (cfg["buffer"]["earlyExtra"] if mode == "early" else 0)
+    subtotal = {
+        clock: total(items, clock) + total(phases, clock)
+        for clock in ("human", "agent")
+    }
+    base_share = cfg["buffer"][target] + (
+        cfg["buffer"]["earlyExtra"] if mode == "early" else 0
+    )
     base = {clock: base_share * subtotal[clock] for clock in subtotal}
     questions = question_rows(cfg, data.get("blockingQuestions", []), by_id, subtotal)
     qbuf = {clock: total(questions, clock) for clock in subtotal}
-    after_buffer = {clock: subtotal[clock] + base[clock] + qbuf[clock] for clock in subtotal}
+    after_buffer = {
+        clock: subtotal[clock] + base[clock] + qbuf[clock] for clock in subtotal
+    }
 
     share = cfg["unplanned"]["share"]
     if share is None or epic_scoped:
@@ -219,7 +256,12 @@ def run_estimate(cfg, data):
     grand = {clock: after_buffer[clock] + allowance[clock] for clock in subtotal}
 
     cap_human = cfg["sprint"]["days"] * cfg["sprint"]["focusHoursPerDay"] * devs
-    cap_agent = cfg["agents"]["parallelPerDev"] * cfg["agents"]["hoursPerDay"] * cfg["sprint"]["days"] * devs
+    cap_agent = (
+        cfg["agents"]["parallelPerDev"]
+        * cfg["agents"]["hoursPerDay"]
+        * cfg["sprint"]["days"]
+        * devs
+    )
     ratio = {"human": grand["human"] / cap_human, "agent": grand["agent"] / cap_agent}
     binding = "human" if ratio["human"] >= ratio["agent"] else "agent"
     sprints = max(1, math.ceil(max(ratio.values()) - 1e-9))
@@ -229,7 +271,9 @@ def run_estimate(cfg, data):
     if unknown:
         fail(f"chain has unknown ids {unknown}")
     floor_days = sum(by_id[c]["agent"] for c in chain) / cfg["agents"]["hoursPerDay"]
-    floor_sprints = math.ceil(floor_days / cfg["sprint"]["days"] - 1e-9) if floor_days else 0
+    floor_sprints = (
+        math.ceil(floor_days / cfg["sprint"]["days"] - 1e-9) if floor_days else 0
+    )
     floor_binds = floor_sprints > sprints
     if floor_binds:
         sprints = floor_sprints
@@ -238,31 +282,68 @@ def run_estimate(cfg, data):
     money = cost(cfg, grand["agent"], sprints, devs, prices)
 
     result = {
-        "target": target, "mode": mode, "devs": devs,
-        "sprints": sprints, "weeks": sprints * 2, "bindingClock": "dependency" if floor_binds else binding,
+        "target": target,
+        "mode": mode,
+        "devs": devs,
+        "sprints": sprints,
+        "weeks": sprints * 2,
+        "bindingClock": "dependency" if floor_binds else binding,
         "ratio": {k: r2(v) for k, v in ratio.items()},
         "capacity": {"human": cap_human, "agent": cap_agent},
-        "workItems": items, "splitFirst": split_first, "phases": phases, "questions": questions,
-        "human": {"phases": r2(total(phases, "human")), "items": r2(total(items, "human")),
-                  "baseBuffer": r2(base["human"]), "questionBuffer": r2(qbuf["human"]),
-                  "unplanned": r2(allowance["human"]), "total": r2(grand["human"])},
-        "agent": {"phases": r2(total(phases, "agent")), "items": r2(total(items, "agent")),
-                  "baseBuffer": r2(base["agent"]), "questionBuffer": r2(qbuf["agent"]),
-                  "unplanned": r2(allowance["agent"]), "total": r2(grand["agent"])},
+        "workItems": items,
+        "splitFirst": split_first,
+        "phases": phases,
+        "questions": questions,
+        "human": {
+            "phases": r2(total(phases, "human")),
+            "items": r2(total(items, "human")),
+            "baseBuffer": r2(base["human"]),
+            "questionBuffer": r2(qbuf["human"]),
+            "unplanned": r2(allowance["human"]),
+            "total": r2(grand["human"]),
+        },
+        "agent": {
+            "phases": r2(total(phases, "agent")),
+            "items": r2(total(items, "agent")),
+            "baseBuffer": r2(base["agent"]),
+            "questionBuffer": r2(qbuf["agent"]),
+            "unplanned": r2(allowance["agent"]),
+            "total": r2(grand["agent"]),
+        },
         "baseBufferShare": r2(base_share),
-        "dependencyFloor": {"chain": chain, "days": r2(floor_days), "binds": floor_binds},
+        "dependencyFloor": {
+            "chain": chain,
+            "days": r2(floor_days),
+            "binds": floor_binds,
+        },
         "cost": money,
-        "prices": prices and {k: v for k, v in prices.items() if k != "models"} | {
-            "models": {cfg["models"][t]["id"]: (prices.get("models") or {}).get(cfg["models"][t]["id"]) for t in cfg["models"]}},
-        "hoursUsed": {"hours": cfg["hours"], "finishing": cfg["finishing"], "buffer": cfg["buffer"]},
+        "prices": prices
+        and {k: v for k, v in prices.items() if k != "models"}
+        | {
+            "models": {
+                cfg["models"][t]["id"]: (prices.get("models") or {}).get(
+                    cfg["models"][t]["id"]
+                )
+                for t in cfg["models"]
+            }
+        },
+        "hoursUsed": {
+            "hours": cfg["hours"],
+            "finishing": cfg["finishing"],
+            "buffer": cfg["buffer"],
+        },
     }
     if mode == "early":
         spread = cfg["buffer"]["earlyRange"]
-        result["range"] = {clock: [r2(grand[clock] * (1 - spread)), r2(grand[clock] * (1 + spread))] for clock in grand}
+        result["range"] = {
+            clock: [r2(grand[clock] * (1 - spread)), r2(grand[clock] * (1 + spread))]
+            for clock in grand
+        }
     return result
 
 
 # -------------------------------------------------------------------- calibrate
+
 
 def round_half(value):
     return round(value * 2) / 2
@@ -271,9 +352,19 @@ def round_half(value):
 def calibrate_clock(cfg, clock, items, sprints, target):
     cal = cfg["calibration"]
     damping, low, high = cal["damping"], cal["clamp"][0], cal["clamp"][1]
-    sized = [i for i in items if not i.get("inFlight") and i.get(f"{clock}Actual") is not None]
+    sized = [
+        i
+        for i in items
+        if not i.get("inFlight") and i.get(f"{clock}Actual") is not None
+    ]
     points = len(sized) + (len(sprints) if clock == "human" else 0)
-    out = {"points": points, "factors": {}, "proposed": {}, "outOfClamp": [], "basis": None}
+    out = {
+        "points": points,
+        "factors": {},
+        "proposed": {},
+        "outOfClamp": [],
+        "basis": None,
+    }
     if points < cal["minSamplesGlobal"]:
         out["basis"] = "none"
         return out
@@ -302,13 +393,27 @@ def calibrate_clock(cfg, clock, items, sprints, target):
         out["factors"][size] = r2(factor)
         current = size_hours(cfg, target, size)[clock]
         if factor < low or factor > high:
-            out["outOfClamp"].append({"size": size, "factor": r2(factor),
-                                      "items": [i["id"] for i in sized if i["size"] == size]})
+            out["outOfClamp"].append(
+                {
+                    "size": size,
+                    "factor": r2(factor),
+                    "items": [i["id"] for i in sized if i["size"] == size],
+                }
+            )
             continue
-        out["proposed"][size] = {"current": current, "proposed": round_half(current * (1 + damping * (factor - 1)))}
+        out["proposed"][size] = {
+            "current": current,
+            "proposed": round_half(current * (1 + damping * (factor - 1))),
+        }
         if clock == "human":
-            spec = cfg["hours"]["mvp"][size]["spec"] if target == "mvp" else size_hours(cfg, target, size)["spec"]
-            out["proposed"][size]["specProposed"] = round_half(spec * (1 + damping * (factor - 1)))
+            spec = (
+                cfg["hours"]["mvp"][size]["spec"]
+                if target == "mvp"
+                else size_hours(cfg, target, size)["spec"]
+            )
+            out["proposed"][size]["specProposed"] = round_half(
+                spec * (1 + damping * (factor - 1))
+            )
     return out
 
 
@@ -318,40 +423,74 @@ def run_calibrate(cfg, data):
     sprints = data.get("sprints", [])
     for item in items:
         if item.get("size") not in SIZES:
-            fail(f"calibration item {item.get('id')} has size {item.get('size')}; use the costed size S, M or L")
-    result = {"target": target,
-              "human": calibrate_clock(cfg, "human", items, sprints, target),
-              "agent": calibrate_clock(cfg, "agent", items, sprints, target)}
+            fail(
+                f"calibration item {item.get('id')} has size {item.get('size')}; use the costed size S, M or L"
+            )
+    result = {
+        "target": target,
+        "human": calibrate_clock(cfg, "human", items, sprints, target),
+        "agent": calibrate_clock(cfg, "agent", items, sprints, target),
+    }
 
-    finishing = [i["agentActual"] / i["agentEstimated"] for i in items
-                 if i.get("inFlight") and i.get("agentActual") is not None]
+    finishing = [
+        i["agentActual"] / i["agentEstimated"]
+        for i in items
+        if i.get("inFlight") and i.get("agentActual") is not None
+    ]
     if len(finishing) >= cfg["calibration"]["minSamplesGlobal"]:
         current = cfg["finishing"]["agentShare"]
         factor = statistics.median(finishing)
-        result["finishing"] = {"factor": r2(factor),
-                               "proposed": round(current * (1 + cfg["calibration"]["damping"] * (factor - 1)), 2)}
+        result["finishing"] = {
+            "factor": r2(factor),
+            "proposed": round(
+                current * (1 + cfg["calibration"]["damping"] * (factor - 1)), 2
+            ),
+        }
 
     base = cfg["buffer"][target]
-    checked = [i for i in items if not i.get("inFlight") and i.get("humanActual") is not None]
+    checked = [
+        i for i in items if not i.get("inFlight") and i.get("humanActual") is not None
+    ]
     if len(checked) >= cfg["calibration"]["minSamplesGlobal"]:
-        over = [i for i in checked if i["humanActual"] > i["humanEstimated"] * (1 + base) + i.get("questionHours", 0)]
+        over = [
+            i
+            for i in checked
+            if i["humanActual"]
+            > i["humanEstimated"] * (1 + base) + i.get("questionHours", 0)
+        ]
         share = len(over) / len(checked)
         change = 0.10 if share > 0.30 else (-0.05 if share < 0.10 else 0.0)
-        result["bufferCheck"] = {"overShare": r2(share), "current": base, "proposed": r2(base + change) if change else None}
+        result["bufferCheck"] = {
+            "overShare": r2(share),
+            "current": base,
+            "proposed": r2(base + change) if change else None,
+        }
 
     unplanned = data.get("unplanned")
     if unplanned and unplanned.get("deliveredHours"):
         measured = unplanned["hours"] / unplanned["deliveredHours"]
-        enough = unplanned.get("items", 0) >= 3 or unplanned.get("windows", 0) >= cfg["calibration"]["minSamplesGlobal"]
+        enough = (
+            unplanned.get("items", 0) >= 3
+            or unplanned.get("windows", 0) >= cfg["calibration"]["minSamplesGlobal"]
+        )
         current = cfg["unplanned"]["share"]
-        proposed = measured if current is None else current + cfg["calibration"]["damping"] * (measured - current)
-        result["unplanned"] = {"measured": r2(measured), "warn": measured > 0.20,
-                               "proposed": round(round(proposed / 0.05) * 0.05, 2) if enough else None}
+        proposed = (
+            measured
+            if current is None
+            else current + cfg["calibration"]["damping"] * (measured - current)
+        )
+        result["unplanned"] = {
+            "measured": r2(measured),
+            "warn": measured > 0.20,
+            "proposed": round(round(proposed / 0.05) * 0.05, 2) if enough else None,
+        }
 
     diff = {}
     for clock in ("human", "agent"):
         for size, values in result[clock]["proposed"].items():
-            node = diff.setdefault("hours", {}).setdefault(target, {}).setdefault(size, {})
+            node = (
+                diff.setdefault("hours", {}).setdefault(target, {}).setdefault(size, {})
+            )
             if values["proposed"] != values["current"]:
                 node[clock] = values["proposed"]
                 if clock == "human":
@@ -364,7 +503,10 @@ def run_calibrate(cfg, data):
         diff["unplanned"] = {"share": result["unplanned"]["proposed"]}
     result["diff"] = {k: v for k, v in diff.items() if v and v != {target: {}}}
     if "hours" in result["diff"]:
-        result["diff"]["hours"] = {t: {s: v for s, v in sizes.items() if v} for t, sizes in result["diff"]["hours"].items()}
+        result["diff"]["hours"] = {
+            t: {s: v for s, v in sizes.items() if v}
+            for t, sizes in result["diff"]["hours"].items()
+        }
     return result
 
 
@@ -372,14 +514,22 @@ def main():
     parser = argparse.ArgumentParser(description="mk-estimate calculations")
     parser.add_argument("command", choices=["estimate", "calibrate"])
     parser.add_argument("--input", required=True, help="path to the input JSON file")
-    parser.add_argument("--config", default=".ai/estimate.config.json", help="path to the estimate config")
+    parser.add_argument(
+        "--config",
+        default=".ai/estimate.config.json",
+        help="path to the estimate config",
+    )
     args = parser.parse_args()
     try:
         data = json.loads(Path(args.input).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         fail(f"cannot read the input file: {error}")
     cfg, used_defaults = load_config(args.config)
-    result = run_estimate(cfg, data) if args.command == "estimate" else run_calibrate(cfg, data)
+    result = (
+        run_estimate(cfg, data)
+        if args.command == "estimate"
+        else run_calibrate(cfg, data)
+    )
     result["defaultsUsed"] = used_defaults
     json.dump(result, sys.stdout, indent=2)
     sys.stdout.write("\n")

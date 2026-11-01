@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Find blocking conflicts between issues in a tracker snapshot.
 
 Run this script. Do not read it to do the analysis by hand.
@@ -24,7 +23,9 @@ from datetime import UTC, datetime
 
 SKILL = "mk-guard-dependencies"  # the skill name in the comment marker
 MARKER = "🤖 `" + SKILL + "` —"  # the shared comment marker of the collection
-EXIT_INVALID = 2  # a different exit code than a Python crash (1), so callers can tell them apart
+EXIT_INVALID = (
+    2  # a different exit code than a Python crash (1), so callers can tell them apart
+)
 
 DEFAULT_STALE_HOURS = 24  # the stale window of the shared claim protocol
 DEFAULT_SPECS_DIR = ".ai/specs"  # the default of paths.specs in the pipeline config
@@ -33,7 +34,12 @@ DEFAULT_LABELS = {  # the default label taxonomy of the pipeline config
     "inProgress": "in-progress",
     "doNotMerge": "do-not-merge",
     "hold": [],
-    "priority": ["priority-low", "priority-medium", "priority-high", "priority-extreme"],
+    "priority": [
+        "priority-low",
+        "priority-medium",
+        "priority-high",
+        "priority-extreme",
+    ],
 }
 # Lock files and checksum files change in almost each PR. They tell nothing about the design.
 DEFAULT_IGNORE_PATHS = ["*.lock", "*-lock.json", "*-lock.yaml", "*.sum"]
@@ -47,7 +53,7 @@ NUM_RE = re.compile(  # an issue number, for example #12
 FIELD_RE = re.compile(
     r"^[ \t]*(?:[-*][ \t]+)?(?:\*\*)?(Depends on|Backlog source|Backlog id|Spec)(?:\*\*)?[ \t]*:[ "
     r"\t]*(.*)$",
-    re.I | re.M,
+    re.IGNORECASE | re.MULTILINE,
 )
 EMPTY_WORDS = {  # words in a Depends on line that mean "no dependency"
     "none",
@@ -56,22 +62,23 @@ EMPTY_WORDS = {  # words in a Depends on line that mean "no dependency"
     "and",
     "or",
     "—",
-    "–",  # noqa: RUF001 - an en dash also means "no dependency"
+    "–",  # an en dash also means "no dependency"
     "-",
 }
 CLOSE_RE = re.compile(  # the closing keywords of the tracker
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)", re.I
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+#(\d+)", re.IGNORECASE
 )
 REFS_RE = re.compile(  # a reference without a close, for example a spec PR
-    r"\brefs?\s*:?\s+#(\d+)", re.I
+    r"\brefs?\s*:?\s+#(\d+)", re.IGNORECASE
 )
 # The release and claim comments of the shared claim protocol.
 RELEASE_RE = re.compile(
     r"^\s*🤖.*\b(lock released|released|run complete|aborted|handback|hand(?:ed)? back)\b",
-    re.I | re.S,
+    re.IGNORECASE | re.DOTALL,
 )
 CLAIM_RE = re.compile(
-    r"^\s*🤖.*\b(claim\w*|taking over|take-over|handed off|adopting|override)\b", re.I | re.S
+    r"^\s*🤖.*\b(claim\w*|taking over|take-over|handed off|adopting|override)\b",
+    re.IGNORECASE | re.DOTALL,
 )
 SECRET_RE = re.compile(  # token formats of common services; a comment must not contain them
     r"(ghp_[A-Za-z0-9]{20,}|github_pat_\w{20,}|glpat-[\w-]{20,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16})"
@@ -98,7 +105,8 @@ def parse_time(value):
     if not value:
         return None
     try:
-        t = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        # Python before 3.11 cannot parse the "Z" suffix.
+        t = datetime.fromisoformat(str(value).replace("Z", "+00:00"))  # noqa: FURB162
     except ValueError:
         return None
     if t.tzinfo is None:
@@ -133,7 +141,9 @@ def norm_comment(c):
 
 def norm_issue(i):
     out = dict(i)
-    out["number"] = int(i["number"]) if str(i.get("number", "")).isdigit() else i.get("number")
+    out["number"] = (
+        int(i["number"]) if str(i.get("number", "")).isdigit() else i.get("number")
+    )
     out["state"] = lower_or_none(i.get("state"))
     out["stateReason"] = lower_or_none(i.get("stateReason") or i.get("state_reason"))
     out["labels"] = [label_of(x) for x in i.get("labels") or []]
@@ -146,7 +156,9 @@ def norm_issue(i):
 
 def norm_pr(p):
     out = dict(p)
-    out["number"] = int(p["number"]) if str(p.get("number", "")).isdigit() else p.get("number")
+    out["number"] = (
+        int(p["number"]) if str(p.get("number", "")).isdigit() else p.get("number")
+    )
     state = lower_or_none(p.get("state"))
     if p.get("mergedAt") and state == "closed":
         state = "merged"
@@ -157,14 +169,18 @@ def norm_pr(p):
     out["body"] = p.get("body") or ""
     files = p.get("files")
     out["files"] = (
-        None if files is None else [f.get("path") if isinstance(f, dict) else str(f) for f in files]
+        None
+        if files is None
+        else [f.get("path") if isinstance(f, dict) else str(f) for f in files]
     )
     closing = p.get("closingIssuesReferences") or p.get("closes") or []
     out["closes"] = sorted(
         {int(x.get("number") if isinstance(x, dict) else x) for x in closing}
         | {int(n) for n in CLOSE_RE.findall(out["body"])}
     )
-    out["refs"] = sorted({int(n) for n in REFS_RE.findall(out["body"])} - set(out["closes"]))
+    out["refs"] = sorted(
+        {int(n) for n in REFS_RE.findall(out["body"])} - set(out["closes"])
+    )
     return out
 
 
@@ -177,9 +193,13 @@ def load_snapshot(path):
     except json.JSONDecodeError as e:
         fail([f"{path} is not valid JSON: line {e.lineno}, column {e.colno}: {e.msg}"])
     if not isinstance(raw, dict):
-        fail([f"{path} must contain one JSON object with the fields readAt, issues, prs"])
+        fail(
+            [f"{path} must contain one JSON object with the fields readAt, issues, prs"]
+        )
     snap = dict(raw)
-    snap["issues"] = [norm_issue(i) for i in raw.get("issues") or [] if isinstance(i, dict)]
+    snap["issues"] = [
+        norm_issue(i) for i in raw.get("issues") or [] if isinstance(i, dict)
+    ]
     snap["prs"] = [norm_pr(p) for p in raw.get("prs") or [] if isinstance(p, dict)]
     labels = dict(DEFAULT_LABELS)
     labels.update(raw.get("labelNames") or {})
@@ -264,13 +284,15 @@ def parse_backlog(path):
 class Graph:
     def __init__(self, snap, backlog_rows):
         self.snap = snap
-        self.issues = {i["number"]: i for i in snap["issues"] if isinstance(i.get("number"), int)}
+        self.issues = {
+            i["number"]: i for i in snap["issues"] if isinstance(i.get("number"), int)
+        }
         self.rows = backlog_rows
         self.order = {}
         for idx, r in enumerate(backlog_rows):
             if r["issue"] is not None:
                 self.order.setdefault(r["issue"], idx)
-        for _n, i in self.issues.items():
+        for i in self.issues.values():
             f = body_fields(i["body"])
             i["_fields"] = f
             i["_source"] = f.get("backlog source") or None
@@ -327,14 +349,18 @@ class Graph:
             row = row_by_issue.get(n)
             mark = len(self.problems)
             body_edges = (
-                self._edges_from_text(n, body_text, source) if body_text is not None else None
+                self._edges_from_text(n, body_text, source)
+                if body_text is not None
+                else None
             )
             row_edges = None
             if row is not None and row.get("depends") is not None:
                 saved = list(self.problems)
                 row_edges = self._edges_from_text(n, row["depends"], row["source"])
                 if body_edges is not None:
-                    self.problems = saved  # the body decides; map problems are not repeated
+                    self.problems = (
+                        saved  # the body decides; map problems are not repeated
+                    )
             if body_edges is None and row_edges is not None:
                 self.blockers[n] |= row_edges
                 self.from_map.add(n)
@@ -344,8 +370,10 @@ class Graph:
                     self.drift.append(
                         (
                             n,
-                            f"backlog.md lists {fmt(row_edges)}, the issue body lists "
-                            f"{fmt(body_edges)}",
+                            (
+                                f"backlog.md lists {fmt(row_edges)}, the issue body lists "
+                                f"{fmt(body_edges)}"
+                            ),
                         )
                     )
             del mark
@@ -353,7 +381,9 @@ class Graph:
             b, d = int(e["blocker"]), int(e["dependent"])
             if d in self.blockers and b not in self.blockers[d]:
                 self.blockers[d].add(b)
-                self.drift.append((d, f"the tracker relation #{b} is not in the Depends on line"))
+                self.drift.append(
+                    (d, f"the tracker relation #{b} is not in the Depends on line")
+                )
 
     def dependents(self, n):
         return [d for d, bs in self.blockers.items() if n in bs]
@@ -429,7 +459,9 @@ def classify(graph):
         s["implPrs"] = [
             p["number"]
             for kind, p in links
-            if kind == "close" and p["state"] == "open" and not is_spec_pr(p, snap["specsDir"])
+            if kind == "close"
+            and p["state"] == "open"
+            and not is_spec_pr(p, snap["specsDir"])
         ]
         if i["state"] == "closed":
             if i["stateReason"] in ("not_planned", "duplicate") or (
@@ -447,7 +479,9 @@ def classify(graph):
             continue
         claims = claim_authors(i.get("comments"))
         owners = (
-            set(i["assignees"]) | set(claims) | {p["author"] for p in open_links if p["author"]}
+            set(i["assignees"])
+            | set(claims)
+            | {p["author"] for p in open_links if p["author"]}
         )
         if len(owners) > 1:
             owners -= snap["automationUsers"] or set()
@@ -458,7 +492,9 @@ def classify(graph):
             s["state"] = "In flight"
             times = [t for t in claims.values() if t]
             times += [
-                parse_time(c["createdAt"]) for c in i.get("comments") or [] if c["author"] in owners
+                parse_time(c["createdAt"])
+                for c in i.get("comments") or []
+                if c["author"] in owners
             ]
             times += [parse_time(p.get("updatedAt")) for p in open_links]
             times = [t for t in times if t]
@@ -581,7 +617,9 @@ def analyze(snap, backlog_rows, current_user=None):
             sb = st.get(b)
             if sb is None or sb["state"] in ("Dropped",):
                 kind = (
-                    "missing from the tracker" if sb is None else "dropped (closed as not planned)"
+                    "missing from the tracker"
+                    if sb is None
+                    else "dropped (closed as not planned)"
                 )
                 sev = "stop" if sd["state"] == "In flight" else "warn"
                 out.append(
@@ -613,7 +651,11 @@ def analyze(snap, backlog_rows, current_user=None):
                 )
             elif sb["state"] == "In flight":
                 same = set(sd["owners"]) & set(sb["owners"])
-                sev = "note" if same and set(sd["owners"]) == set(sb["owners"]) else "warn"
+                sev = (
+                    "note"
+                    if same and set(sd["owners"]) == set(sb["owners"])
+                    else "warn"
+                )
                 out.append(
                     finding(
                         "C2b",
@@ -656,7 +698,9 @@ def analyze(snap, backlog_rows, current_user=None):
                 )
             )
         waiting = [
-            d for d in g.dependents(n) if st.get(d, {}).get("state") not in ("Resolved", "Dropped")
+            d
+            for d in g.dependents(n)
+            if st.get(d, {}).get("state") not in ("Resolved", "Dropped")
         ]
         if s["stale"] and waiting:
             pr = s["implPrs"][0] if s["implPrs"] else None
@@ -700,13 +744,18 @@ def analyze(snap, backlog_rows, current_user=None):
     for x in range(len(impl)):
         for y in range(x + 1, len(impl)):
             a, b = impl[x], impl[y]
-            if set(a["closes"]) & set(b["closes"]) or a["files"] is None or b["files"] is None:
+            if (
+                set(a["closes"]) & set(b["closes"])
+                or a["files"] is None
+                or b["files"] is None
+            ):
                 continue
             shared = overlap(a["files"], b["files"], snap["ignorePaths"])
             if not shared:
                 continue
             first, second = sorted(
-                [a, b], key=lambda p: min(g.order.get(n, 10**6 + n) for n in p["closes"])
+                [a, b],
+                key=lambda p: min(g.order.get(n, 10**6 + n) for n in p["closes"]),
             )
             sev = "note" if a["author"] == b["author"] else "warn"
             shown = ", ".join(shared[:5]) + (
@@ -726,11 +775,15 @@ def analyze(snap, backlog_rows, current_user=None):
 
     hold = set(names["hold"]) | {names["blocked"], names["doNotMerge"]}
     stop_subjects = {
-        f["subject"] for f in out if f["severity"] == "stop" or f["rule"] in ("C1", "C5")
+        f["subject"]
+        for f in out
+        if f["severity"] == "stop" or f["rule"] in ("C1", "C5")
     }
 
     def blockers_resolved(n):
-        return all(st.get(b, {}).get("state") == "Resolved" for b in g.blockers.get(n, ()))
+        return all(
+            st.get(b, {}).get("state") == "Resolved" for b in g.blockers.get(n, ())
+        )
 
     candidates = [
         n
@@ -807,10 +860,16 @@ def analyze(snap, backlog_rows, current_user=None):
                 for c in issue.get("comments") or []
             )
             open_blockers = [
-                b for b in g.blockers.get(n, ()) if st.get(b, {}).get("state") != "Resolved"
+                b
+                for b in g.blockers.get(n, ())
+                if st.get(b, {}).get("state") != "Resolved"
             ]
             others = set(s["owners"]) - ({current_user} if current_user else set())
-            if blocked in s["labels"] and not open_blockers and (g.blockers.get(n) or has_marker):
+            if (
+                blocked in s["labels"]
+                and not open_blockers
+                and (g.blockers.get(n) or has_marker)
+            ):
                 f = finding(
                     "C7",
                     "label",
@@ -875,7 +934,10 @@ def analyze(snap, backlog_rows, current_user=None):
         return max(ranks) if ranks else -1
 
     warn_subjects = {f["subject"]: f["rule"] for f in out if f["severity"] == "warn"}
-    safe = sorted(candidates, key=lambda n: (-prio_rank(n), g.order.get(n, 10**6 + n), -unlocks(n)))
+    safe = sorted(
+        candidates,
+        key=lambda n: (-prio_rank(n), g.order.get(n, 10**6 + n), -unlocks(n)),
+    )
     safe_list = [
         {
             "issue": n,
@@ -932,7 +994,11 @@ def analyze(snap, backlog_rows, current_user=None):
         )
 
     first_stop = next((f for f in out if f["severity"] == "stop"), None)
-    nxt = first_stop["next"] if first_stop else (safe_list[0]["next"] if safe_list else "none")
+    nxt = (
+        first_stop["next"]
+        if first_stop
+        else (safe_list[0]["next"] if safe_list else "none")
+    )
     m = re.search(r"(om-[a-z-]+(?: [^\s;]+)*)", nxt)
     nxt_line = m.group(1) if m and nxt != "none" else "none"
 
@@ -946,7 +1012,9 @@ def analyze(snap, backlog_rows, current_user=None):
             "note": counts["note"],
             "safe": len(safe_list),
             "waiting": sum(
-                1 for n in pending if st[n]["state"] == "Free" and not blockers_resolved(n)
+                1
+                for n in pending
+                if st[n]["state"] == "Free" and not blockers_resolved(n)
             ),
         },
         "issues": [
@@ -978,7 +1046,12 @@ def gate(snap, rows, target, current_user):
     if s is None:
         return "conflict", [], "none", f"#{target} is not in the snapshot"
     if s["state"] == "Unknown":
-        return "conflict", [], "none", f"#{target} could not be read ({'; '.join(s['notes'])})"
+        return (
+            "conflict",
+            [],
+            "none",
+            f"#{target} could not be read ({'; '.join(s['notes'])})",
+        )
     if s["state"] in ("Resolved", "Dropped"):
         return (
             "conflict",
@@ -1005,8 +1078,12 @@ def gate(snap, rows, target, current_user):
     open_chain = [b for b in order if st.get(b, {}).get("state") != "Resolved"]
     own = [f for f in res["findings"] if f["subject"] == target]
     bad = [f for f in own if f["rule"] in ("C1", "C3", "C5")]
-    bad += [f for f in res["findings"] if f["rule"] in ("C1", "C5") and f["subject"] in seen]
-    unread = [b for b in order if b not in st or st[b]["state"] in ("Unknown", "Dropped")]
+    bad += [
+        f for f in res["findings"] if f["rule"] in ("C1", "C5") and f["subject"] in seen
+    ]
+    unread = [
+        b for b in order if b not in st or st[b]["state"] in ("Unknown", "Dropped")
+    ]
     if bad or unread:
         reason = (
             bad[0]["evidence"]
@@ -1023,7 +1100,9 @@ def gate(snap, rows, target, current_user):
             b
             for b in open_chain
             if st[b]["state"] == "Free"
-            and all(st.get(x, {}).get("state") == "Resolved" for x in g.blockers.get(b, ()))
+            and all(
+                st.get(x, {}).get("state") == "Resolved" for x in g.blockers.get(b, ())
+            )
         ]
         stale = [
             b
@@ -1040,7 +1119,9 @@ def gate(snap, rows, target, current_user):
             for b in open_chain
         ]
         if labels:
-            parts.append("the issue carries " + ", ".join(f"`{lbl}`" for lbl in sorted(labels)))
+            parts.append(
+                "the issue carries " + ", ".join(f"`{lbl}`" for lbl in sorted(labels))
+            )
         return "wait", open_chain, nxt, "; ".join(parts)
     return (
         "clear",
@@ -1065,12 +1146,20 @@ def plan(snap, rows, current_user, sync, notify):
             n = f["subject"]
             if f["change"] == "remove" and not f["addedByGuard"]:
                 skipped.append(
-                    {"issue": n, "reason": f"`{names['blocked']}` was added by hand; not changed"}
+                    {
+                        "issue": n,
+                        "reason": f"`{names['blocked']}` was added by hand; not changed",
+                    }
                 )
                 continue
             op = "add-label" if f["change"] == "add" else "remove-label"
             changes.append(
-                {"issue": n, "op": op, "label": names["blocked"], "reason": f["evidence"]}
+                {
+                    "issue": n,
+                    "op": op,
+                    "label": names["blocked"],
+                    "reason": f["evidence"],
+                }
             )
             line = (
                 f"🏷️ label `{names['blocked']}` added: waits for {fmt(f['related'])}."
@@ -1082,7 +1171,11 @@ def plan(snap, rows, current_user, sync, notify):
     for f in stop:
         if st.get(f["subject"], {}).get("state") == "Unknown":
             continue
-        owners = (" Owner: " + ", ".join("@" + o for o in f["owners"]) + ".") if f["owners"] else ""
+        owners = (
+            (" Owner: " + ", ".join("@" + o for o in f["owners"]) + ".")
+            if f["owners"]
+            else ""
+        )
         per_issue.setdefault(f["subject"], []).append(
             f"⛔ {f['rule']}: {f['evidence']}.{owners} Next: {f['next']}."
         )
@@ -1095,25 +1188,43 @@ def plan(snap, rows, current_user, sync, notify):
         ]
         lines = per_issue.get(n)
         if lines:
-            head = "label" if all(line.startswith("🏷️") for line in lines) else "conflicts"
+            head = (
+                "label" if all(line.startswith("🏷️") for line in lines) else "conflicts"
+            )
             body = (
                 f"{MARKER} {head}\n"
                 + "\n".join("- " + line for line in lines)
                 + f"\n\nChecked: {snap.get('readAt')}. This comment is updated on every run."
             )
-        elif existing and notify and "✅ resolved" not in existing[-1]["body"].split("\n", 1)[0]:
-            body = f"{MARKER} ✅ resolved\n\nNo blocking conflict at {snap.get('readAt')}."
+        elif (
+            existing
+            and notify
+            and "✅ resolved" not in existing[-1]["body"].split("\n", 1)[0]
+        ):
+            body = (
+                f"{MARKER} ✅ resolved\n\nNo blocking conflict at {snap.get('readAt')}."
+            )
         else:
             continue
         if existing:
             if existing[-1]["body"].strip() == body.strip():
                 continue
             changes.append(
-                {"issue": n, "op": "update-comment", "commentId": existing[-1]["id"], "body": body}
+                {
+                    "issue": n,
+                    "op": "update-comment",
+                    "commentId": existing[-1]["id"],
+                    "body": body,
+                }
             )
         else:
             changes.append({"issue": n, "op": "create-comment", "body": body})
-    return {"skill": SKILL, "readAt": snap.get("readAt"), "changes": changes, "skipped": skipped}
+    return {
+        "skill": SKILL,
+        "readAt": snap.get("readAt"),
+        "changes": changes,
+        "skipped": skipped,
+    }
 
 
 def check_plan(snap, plan_doc, current_user):
@@ -1145,7 +1256,8 @@ def check_plan(snap, plan_doc, current_user):
                     f"{', '.join('@' + o for o in sorted(others))}; do not change its labels"
                 )
             if op == "remove-label" and not any(
-                x["body"].lstrip().startswith(MARKER) for x in issues[n].get("comments") or []
+                x["body"].lstrip().startswith(MARKER)
+                for x in issues[n].get("comments") or []
             ):
                 errors.append(
                     f"{where}: no {SKILL} comment exists, so a person added the label; do not "
@@ -1154,7 +1266,9 @@ def check_plan(snap, plan_doc, current_user):
         elif op in ("create-comment", "update-comment"):
             comment_ops[n] = comment_ops.get(n, 0) + 1
             if not str(c.get("body", "")).startswith(MARKER):
-                errors.append(f"{where}: the comment must start with the marker {MARKER}")
+                errors.append(
+                    f"{where}: the comment must start with the marker {MARKER}"
+                )
             if op == "update-comment" and not c.get("commentId"):
                 errors.append(f"{where}: update-comment needs commentId")
             if SECRET_RE.search(str(c.get("body", ""))):
@@ -1168,7 +1282,9 @@ def check_plan(snap, plan_doc, current_user):
             )
     for n, count in comment_ops.items():
         if count > 1:
-            errors.append(f"issue #{n}: {count} comment changes; the maximum is 1 per run")
+            errors.append(
+                f"issue #{n}: {count} comment changes; the maximum is 1 per run"
+            )
     return errors
 
 
@@ -1194,7 +1310,9 @@ def validate(raw, snap, issue=None):
     known = set()
     for k, i in enumerate(snap["issues"]):
         if not isinstance(i.get("number"), int):
-            errors.append(f"issues[{k}] has no number; its fields are: {', '.join(sorted(i))}")
+            errors.append(
+                f"issues[{k}] has no number; its fields are: {', '.join(sorted(i))}"
+            )
             continue
         known.add(i["number"])
         if i.get("readError"):
@@ -1226,7 +1344,9 @@ def validate(raw, snap, issue=None):
                         '"<reason>"}'
                     )
     if issue is not None and issue not in known:
-        errors.append(f"the gate issue #{issue} is not in the snapshot; read it with get-issue")
+        errors.append(
+            f"the gate issue #{issue} is not in the snapshot; read it with get-issue"
+        )
     if "nativeEdges" not in raw:
         warnings.append("no nativeEdges: native tracker relations will not be used")
     return errors, warnings
@@ -1293,7 +1413,13 @@ def main(argv=None):
         res = analyze(snap, rows, user)
         if a.issue is not None:
             v, b, n, r = gate(snap, rows, a.issue, user)
-            res["gate"] = {"issue": a.issue, "verdict": v, "blockedBy": b, "next": n, "reason": r}
+            res["gate"] = {
+                "issue": a.issue,
+                "verdict": v,
+                "blockedBy": b,
+                "next": n,
+                "reason": r,
+            }
         json.dump(strip_private(res), sys.stdout, ensure_ascii=False, indent=2)
         print()
     elif a.cmd == "gate":
@@ -1307,7 +1433,9 @@ def main(argv=None):
         doc = plan(snap, rows, user, a.sync_labels, a.notify)
         with open(a.out, "w", encoding="utf-8") as fh:
             json.dump(doc, fh, ensure_ascii=False, indent=2)
-        print(f"Wrote {len(doc['changes'])} change(s) and {len(doc['skipped'])} skip(s) to {a.out}")
+        print(
+            f"Wrote {len(doc['changes'])} change(s) and {len(doc['skipped'])} skip(s) to {a.out}"
+        )
 
 
 if __name__ == "__main__":

@@ -37,27 +37,27 @@ Written first — it is the contract everything else has to satisfy.
 from a2a.types import AgentCapabilities, AgentCard, AgentInterface, AgentSkill
 
 skill = AgentSkill(
-    id='echo_bot',
-    name='Echo Bot',
-    description='Acknowledges a client request and responds with a Hello World message.',
-    tags=['a2a', 'echo-example'],
-    examples=['hi', 'how are you'],
-    input_modes=['text/plain'],
-    output_modes=['text/plain'],
+    id="echo_bot",
+    name="Echo Bot",
+    description="Acknowledges a client request and responds with a Hello World message.",
+    tags=["a2a", "echo-example"],
+    examples=["hi", "how are you"],
+    input_modes=["text/plain"],
+    output_modes=["text/plain"],
 )
 
 agent_card = AgentCard(
-    name='Hello World Agent',
-    description='Just a hello world agent',
-    version='0.0.1',
-    default_input_modes=['text/plain'],
-    default_output_modes=['text/plain'],
+    name="Hello World Agent",
+    description="Just a hello world agent",
+    version="0.0.1",
+    default_input_modes=["text/plain"],
+    default_output_modes=["text/plain"],
     capabilities=AgentCapabilities(streaming=True),
     supported_interfaces=[
         AgentInterface(
-            protocol_binding='JSONRPC',
-            url='http://127.0.0.1:9999',
-            protocol_version='1.0',
+            protocol_binding="JSONRPC",
+            url="http://127.0.0.1:9999",
+            protocol_version="1.0",
         )
     ],
     skills=[skill],
@@ -72,7 +72,10 @@ One class. Receive context, create or resume the Task, push status, attach artif
 
 ```python
 from a2a.helpers import (
-    get_message_text, new_task_from_user_message, new_text_message, new_text_part,
+    get_message_text,
+    new_task_from_user_message,
+    new_text_message,
+    new_text_part,
 )
 from a2a.server.agent_execution import AgentExecutor, RequestContext
 from a2a.server.events import EventQueue
@@ -98,24 +101,26 @@ class HelloWorldAgentExecutor(AgentExecutor):
         # 2. Signal work started.
         await updater.update_status(
             state=TaskState.TASK_STATE_WORKING,
-            message=new_text_message('Processing request...'),
+            message=new_text_message("Processing request..."),
         )
 
         # 3. Do the actual work.
         query = get_message_text(context.message)
-        result = await self.agent.invoke(query) if query else 'No text input provided.'
+        result = await self.agent.invoke(query) if query else "No text input provided."
 
         # 4. Emit output as an artifact.
-        await updater.add_artifact(parts=[new_text_part(text=result, media_type='text/plain')])
+        await updater.add_artifact(
+            parts=[new_text_part(text=result, media_type="text/plain")]
+        )
 
         # 5. Land in a terminal state. Non-negotiable — see §5.
         await updater.update_status(
             state=TaskState.TASK_STATE_COMPLETED,
-            message=new_text_message('Request is completed!'),
+            message=new_text_message("Request is completed!"),
         )
 
     async def cancel(self, context: RequestContext, event_queue: EventQueue) -> None:
-        raise NotImplementedError('Cancel is not supported.')
+        raise NotImplementedError("Cancel is not supported.")
 ```
 
 Raising `NotImplementedError` from `cancel` is an honest answer when the work genuinely can't be interrupted — better than a stub that returns success and cancels nothing. If cancellation *is* supported, drive the task to `TASK_STATE_CANCELED`.
@@ -137,11 +142,15 @@ request_handler = DefaultRequestHandler(
 )
 
 routes = []
-routes.extend(create_agent_card_routes(agent_card))          # serves /.well-known/agent-card.json
-routes.extend(create_jsonrpc_routes(request_handler, '/'))   # or create_rest_routes / gRPC
+routes.extend(
+    create_agent_card_routes(agent_card)
+)  # serves /.well-known/agent-card.json
+routes.extend(
+    create_jsonrpc_routes(request_handler, "/")
+)  # or create_rest_routes / gRPC
 
 app = Starlette(routes=routes)
-uvicorn.run(app, host='127.0.0.1', port=9999)
+uvicorn.run(app, host="127.0.0.1", port=9999)
 ```
 
 Route factories rather than a monolithic app class — that's the 1.0 shape, and it means A2A routes can mount into an existing Starlette or FastAPI app alongside your own middleware. `InMemoryTaskStore` is for development; use a SQL-backed store for anything that must survive a restart, which is most things once push notifications or long tasks are in play.
@@ -159,13 +168,13 @@ from a2a.types import Role, SendMessageRequest
 async with httpx.AsyncClient() as httpx_client:
     resolver = A2ACardResolver(
         httpx_client=httpx_client,
-        base_url='http://127.0.0.1:9999',
+        base_url="http://127.0.0.1:9999",
         # agent_card_path='...'   # only if the agent doesn't use the well-known path
     )
     card = await resolver.get_agent_card()
 
 client = await create_client(agent=card, client_config=ClientConfig(streaming=False))
-request = SendMessageRequest(message=new_text_message('Hi there', role=Role.ROLE_USER))
+request = SendMessageRequest(message=new_text_message("Hi there", role=Role.ROLE_USER))
 
 async for chunk in client.send_message(request):
     print(chunk)

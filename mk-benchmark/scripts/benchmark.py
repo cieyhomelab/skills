@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Deterministic calculations for the mk-benchmark skill.
 
 Commands:
@@ -20,13 +19,24 @@ import os
 import re
 import sys
 
-DEFAULT_SIZES = {"XS": 2, "S": 4, "M": 8, "L": 16, "XL": 32}  # hours of human focus work per size
+DEFAULT_SIZES = {
+    "XS": 2,
+    "S": 4,
+    "M": 8,
+    "L": 16,
+    "XL": 32,
+}  # hours of human focus work per size
 SPI_ON_TRACK = 0.95  # SPI at or above this value: on track
 SPI_AT_RISK = 0.80  # SPI at or above this value and below SPI_ON_TRACK: at risk
 TREND_POINTS = 3  # the last 3 snapshots give the velocity trend
 MAX_FORECAST_DAYS = 2000  # stop the forecast after about 8 years of working days
-VELOCITY_WARN_RATIO = 2.0  # a measured velocity above 2x the plan capacity gives a warning
-KINDS = ("build", "human")  # build: agents can speed it up; human: interviews, decisions
+VELOCITY_WARN_RATIO = (
+    2.0  # a measured velocity above 2x the plan capacity gives a warning
+)
+KINDS = (
+    "build",
+    "human",
+)  # build: agents can speed it up; human: interviews, decisions
 
 # Credit for each status: the part of the item's planned hours that counts as earned value.
 CREDIT = {
@@ -187,7 +197,9 @@ def normalize_plan(header, items):
         for part in header["sizes"].split(","):
             m = re.match(r"^\s*([A-Za-z]+)\s*=\s*(\d+(?:\.\d+)?)\s*$", part)
             if not m:
-                errors.append(f"Size table: cannot read {part.strip()!r}; use the form XS=2, S=4")
+                errors.append(
+                    f"Size table: cannot read {part.strip()!r}; use the form XS=2, S=4"
+                )
                 continue
             sizes[m.group(1).upper()] = float(m.group(2))
     plan["sizes"] = sizes
@@ -231,11 +243,15 @@ def normalize_plan(header, items):
             hours = sizes[size]
         kind = (row.get("kind") or "build").strip().lower() or "build"
         if kind not in KINDS:
-            errors.append(f"row {n} ({iid}): Kind {kind!r} must be one of {list(KINDS)}")
+            errors.append(
+                f"row {n} ({iid}): Kind {kind!r} must be one of {list(KINDS)}"
+            )
             kind = "build"
         sprint = row.get("sprint", "").strip().lower()
         if sprint not in ("", "auto") and not sprint.isdigit():
-            errors.append(f"row {n} ({iid}): Sprint {sprint!r} must be a number, auto, or empty")
+            errors.append(
+                f"row {n} ({iid}): Sprint {sprint!r} must be a number, auto, or empty"
+            )
         norm_items.append(
             {
                 "id": iid,
@@ -269,7 +285,12 @@ def cmd_check(path):
     header, items, *_ = read_plan(path)
     plan, errors = normalize_plan(header, items)
     total = sum(i["hours"] for i in plan["items"])
-    out = {"ok": not errors, "errors": errors, "items": len(plan["items"]), "plannedHours": total}
+    out = {
+        "ok": not errors,
+        "errors": errors,
+        "items": len(plan["items"]),
+        "plannedHours": total,
+    }
     if not errors:
         a_date, a_ev, mode = anchor(plan)
         days = math.ceil(max(0.0, total - a_ev) / daily_capacity(plan))
@@ -401,7 +422,12 @@ def ux_coverage(ux):
         total_n += 1
         if status != "present":
             out["missing"].append(
-                {"id": e.get("id"), "name": e.get("name"), "kind": kind, "status": status}
+                {
+                    "id": e.get("id"),
+                    "name": e.get("name"),
+                    "kind": kind,
+                    "status": status,
+                }
             )
     for g in out["groups"].values():
         g["coveragePct"] = round(100.0 * g["credit"] / g["n"], 1)
@@ -471,7 +497,11 @@ def analyze(plan, snap, history_dir):
     unknown_deps = set()
     for k, item in enumerate(plan["items"]):
         r = rows[k]
-        s = by_issue.get(item["issue"]) if item["issue"] is not None else by_id.get(item["id"])
+        s = (
+            by_issue.get(item["issue"])
+            if item["issue"] is not None
+            else by_id.get(item["id"])
+        )
         if r["status"] in ("Done", "Done (no PR)", "Dropped"):
             continue
         for dep in (s or {}).get("dependsOn") or []:
@@ -503,8 +533,12 @@ def analyze(plan, snap, history_dir):
     earned = sum(r["earned"] for r in active)
     strict = sum(r["hours"] for r in active if r["status"] in ("Done", "Done (no PR)"))
     earned_build = sum(r["earned"] for r in active if r["kind"] == "build")
-    remaining_build = sum(r["hours"] - r["earned"] for r in active if r["kind"] == "build")
-    remaining_human = sum(r["hours"] - r["earned"] for r in active if r["kind"] == "human")
+    remaining_build = sum(
+        r["hours"] - r["earned"] for r in active if r["kind"] == "build"
+    )
+    remaining_human = sum(
+        r["hours"] - r["earned"] for r in active if r["kind"] == "human"
+    )
 
     cap = daily_capacity(plan)
     a_date, a_ev, mode = anchor(plan)
@@ -538,16 +572,16 @@ def analyze(plan, snap, history_dir):
         days = working_days_between(d0, today)
         if days > 0 and earned_build - ev0 > 0:
             velocity = (earned_build - ev0) / days
-            velocity_source = f"build trend since {d0.isoformat()} ({len(trend) + 1} points)"
+            velocity_source = (
+                f"build trend since {d0.isoformat()} ({len(trend) + 1} points)"
+            )
     if velocity is None and since_anchor > 0:
         base = 0.0
         if mode == "retrospective":
             base = plan["eab_build"] if plan["eab_build"] is not None else a_ev
         if earned_build - base > 0:
             velocity = (earned_build - base) / since_anchor
-            velocity_source = (
-                f"build average since {a_date.isoformat()} ({since_anchor} working days)"
-            )
+            velocity_source = f"build average since {a_date.isoformat()} ({since_anchor} working days)"
     build_velocity = velocity
     if build_velocity is None:
         build_velocity = cap
@@ -710,7 +744,11 @@ def cmd_analyze(plan_path, snap_path, history_dir, save):
     out = {"ok": True, "result": result}
     if save:
         if not history_dir:
-            print(json.dumps({"ok": False, "errors": ["--save needs --history DIR"]}, indent=2))
+            print(
+                json.dumps(
+                    {"ok": False, "errors": ["--save needs --history DIR"]}, indent=2
+                )
+            )
             return 1
         os.makedirs(history_dir, exist_ok=True)
         path = os.path.join(history_dir, f"{result['today']}.json")
